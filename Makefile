@@ -1,4 +1,5 @@
 # See LICENSE.txt for license details.
+CXX=icpc
 
 CXX_FLAGS += -std=c++11 -O3 -Wall
 PAR_FLAG = -fopenmp
@@ -16,7 +17,7 @@ ifneq ($(SERIAL), 1)
 	CXX_FLAGS += $(PAR_FLAG)
 endif
 
-KERNELS = bc bfs cc pr sssp tc
+KERNELS = bc bfs cc pr sssp tc tc_migra
 SUITE = $(KERNELS) converter
 
 .PHONY: all

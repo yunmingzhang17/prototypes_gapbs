@@ -81,6 +81,29 @@ size_t OrderedCount(const Graph &g) {
   BuildCacheSegmentedGraphs(&g, graphSegments, numSlices, numElementsPerSegment, numElementsPerSlice);
 
   //Perform computation within each segment
+  for (int segmentId = 0; segmentId < numSegments; segmentId++){
+    auto sg = graphSegments->getSegmentedGraph(segmentId);
+    int* segmentVertexArray = sg->vertexArray;
+    int* segmentEdgeArray = sg->edgeArray;
+
+    for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++){
+      int u = sg->graphId[localVertexId];
+      int start = segmentVertexArray[localVertexId];
+      int end = segmentVertexArray[localVertexId+1];
+      for (int neighbor = start; neighbor < end; neighbor++){
+	int v = segmentEdgeArray[neighbor];
+	if (v > u)
+	  break;
+
+	//neighbor_start = 
+	//for (int ngh_ngh = 
+
+
+      }
+      
+    }
+  }
+
 
   //Perform a merge from all segments
 

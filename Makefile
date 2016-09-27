@@ -1,8 +1,17 @@
 # See LICENSE.txt for license details.
 CXX=icpc
 
+
+ifeq ($(DEBUG), 1)
+CXX_FLAGS += -std=c++11 -O0 -g -Wall -DDEBUG
+PAR_FLAG = -fopenmp
+
+else 
+
 CXX_FLAGS += -std=c++11 -O3 -Wall
 PAR_FLAG = -fopenmp
+
+endif
 
 ifneq (,$(findstring icpc,$(CXX)))
 	PAR_FLAG = -openmp

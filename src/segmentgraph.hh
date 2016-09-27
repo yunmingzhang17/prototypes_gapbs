@@ -179,15 +179,19 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
     for (NodeID v : originalGraph->out_neigh(u)){
       //int ngh = edgeArray[j];
       //int blk_id = i/blockDim * numBlocksPerRow + ngh/blockDim;
-      int segment_id = offsets[v]/numElementsPerSegment;
 
-#ifdef DEBUG3
-      cout << "dst: " << u << " src: " << v << " blk_id: " << segment_id << endl;
-#endif
+      int segment_id = offsets[v]/numElementsPerSegment;
+      //#ifdef DEBUG
+      //cout << "edge from u: " << u << " to v: " << v << endl;
+      //#endif
 
       graphSegments->getSegmentedGraph(segment_id)->countIncomingEdge(v,u);
     }
   }
+
+#ifdef DEBUG
+  cout << endl;
+#endif
 
   //Allocate eac block
   graphSegments->allocate();

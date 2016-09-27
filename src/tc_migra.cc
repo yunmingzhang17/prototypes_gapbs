@@ -48,9 +48,12 @@ size_t OrderedCount(const Graph &g) {
   
   size_t total = 0;
   /*
-  #pragma omp parallel for reduction(+ : total) schedule(dynamic, 64)
+  //#pragma omp parallel for reduction(+ : total) schedule(dynamic, 64)
   for (NodeID u=0; u < g.num_nodes(); u++) {
     for (NodeID v : g.out_neigh(u)) {
+#ifdef DEBUG
+      cout << "edge from u: " << u << " to v: " << v << endl;
+#endif
       if (v > u)
         break;
       auto it = g.out_neigh(u).begin();
@@ -59,11 +62,17 @@ size_t OrderedCount(const Graph &g) {
           break;
         while (*it < w)
           it++;
-        if (w == *it)
-          total++;
+        if (w == *it){
+#ifdef DEBUG
+      cout << "triangle: u, v, w: " << u << " " << v << " "  << w << endl;
+#endif
+	  total++;
+        }
       }
     }
   }
+  
+  total = 0;
   */
 
   //Build the segmented graph from g
@@ -72,9 +81,10 @@ size_t OrderedCount(const Graph &g) {
   int numElementsPerSegment = 1024*1024*4; 
   //4 k integers for 32 K L1 cache, usign about 50% of the cache
   int numElementsPerSlice = 1024*4;
-  int numSegments = g.num_edges()/numElementsPerSegment; 
+  int numSegments = (g.num_edges() + numElementsPerSegment)/numElementsPerSegment; 
   int numSlices = g.num_nodes()/numElementsPerSlice;
 
+  cout << "number of segments: " << numSegments << endl;
 
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, numSlices, numElementsPerSlice);
 
@@ -85,31 +95,57 @@ size_t OrderedCount(const Graph &g) {
     auto sg = graphSegments->getSegmentedGraph(segmentId);
     int* segmentVertexArray = sg->vertexArray;
     int* segmentEdgeArray = sg->edgeArray;
+    size_t local_total = 0;
+    int localVertexId;
 
-    for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++){
+#ifdef DEBUG2
+    cout << "in segment: " << segmentId << endl;
+    cout << "num vertices: " << sg->numVertices << " num edges: " << sg->numEdges << endl;
+    cout << "segment vertex array: " << endl;
+    for (int i = 0; i < sg->numVertices + 1; i++){
+      cout << " " << segmentVertexArray[i];
+    }
+    cout << endl;
+    cout << "segment edge array: " << endl;
+    for (int i = 0; i < sg->numEdges; i++){
+      cout << " " << segmentEdgeArray[i];
+    }
+    cout << endl;
+#endif
+
+    #pragma omp parallel for reduction(+ : local_total) schedule(dynamic, 64)   
+    for (localVertexId = 0; localVertexId < sg->numVertices; localVertexId++){
       int u = sg->graphId[localVertexId];
       int start = segmentVertexArray[localVertexId];
       int end = segmentVertexArray[localVertexId+1];
       for (int neighbor = start; neighbor < end; neighbor++){
 	int v = segmentEdgeArray[neighbor];
+#ifdef DEBUG2
+	cout << "edge from u: " << u << " to v: " << v << endl;
+#endif
 	if (v > u)
 	  break;
-
-	//neighbor_start = 
-	//for (int ngh_ngh = 
-
-
+	auto it = g.out_neigh(u).begin();                                     
+	for (NodeID w : g.out_neigh(v)) {                                     
+	  if (w > v)                                                          
+	    break;                                                            
+	  while (*it < w)                                                     
+	    it++;                                                             
+	  if (w == *it){                                                      
+#ifdef DEBUG2
+      cout << "triangle: u, v, w: " << u << " " <<  v << " "  << w << endl;
+#endif
+	    local_total++;                                                    
+           }
+        }                                                                     
       }
       
-    }
-  }
-
-
-  //Perform a merge from all segments
-
-  //Final reduction to generate total
+    }//end of localVertexId for
+    total += local_total;
+  }// end of segment for
 
   return total;
+
 }
 
 

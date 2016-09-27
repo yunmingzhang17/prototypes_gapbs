@@ -45,7 +45,9 @@ to relabel the graph, we use the heuristic in WorthRelabelling.
 using namespace std;
 
 size_t OrderedCount(const Graph &g) {
+  
   size_t total = 0;
+  /*
   #pragma omp parallel for reduction(+ : total) schedule(dynamic, 64)
   for (NodeID u=0; u < g.num_nodes(); u++) {
     for (NodeID v : g.out_neigh(u)) {
@@ -62,6 +64,28 @@ size_t OrderedCount(const Graph &g) {
       }
     }
   }
+  */
+
+  //Build the segmented graph from g
+
+  //4 M integers for 32 M LLC cache, using about 50% of the cache
+  int numElementsPerSegment = 1024*1024*4; 
+  //4 k integers for 32 K L1 cache, usign about 50% of the cache
+  int numElementsPerSlice = 1024*4;
+  int numSegments = g.num_edges()/numElementsPerSegment; 
+  int numSlices = g.num_nodes()/numElementsPerSlice;
+
+
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, numSlices, numElementsPerSlice);
+
+  BuildCacheSegmentedGraphs(&g, graphSegments, numSlices, numElementsPerSegment, numElementsPerSlice);
+
+  //Perform computation within each segment
+
+  //Perform a merge from all segments
+
+  //Final reduction to generate total
+
   return total;
 }
 

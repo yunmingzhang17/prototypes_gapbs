@@ -15,6 +15,8 @@ struct SegmentedGraph
   int * vertexArray;
   int numVertices;
   int numEdges;
+  int numSlices;
+  int numElementsPerSlice;
   bool allocated;
   Timer cumulativeTimer;
   DataT * intermediateBuffer;
@@ -26,7 +28,7 @@ private:
   Vertex lastEdge;
 
 public:
-  SegmentedGraph()
+  SegmentedGraph(int _numSlices, int _numElementsPerSlice) : numSlices(_numSlices) , numElementsPerSlice(_numElementsPerSlice)
   {
     allocated = false;
     numVertices = 0;
@@ -41,7 +43,6 @@ public:
     delete[] graphId;
     delete[] edgeArray;
     delete[] vertexArray;
-
   }
 
 
@@ -63,7 +64,6 @@ public:
   {
     bool newVertex = false;
     if (dst != lastVertex) {
-      assert(dst > lastVertex);
       numVertices++;
       lastVertex = dst;
       newVertex = true;
@@ -80,7 +80,7 @@ public:
     if (dst != lastVertex) {
       // a new vertex going to the same partition                                   
       // must be sorted                                                             
-      assert(dst > lastVertex);
+      //assert(dst > lastVertex);
       lastVertex = dst;
       graphId[lastLocalIndex] = dst;
       vertexArray[lastLocalIndex++] = lastEdge;
@@ -118,17 +118,16 @@ template <class DataT, class Vertex>
 struct GraphSegments 
 {
   int numSegments;
-  int numRows, numCols;
+  int numSlices;
+  int numElementsPerSlice;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
-  GraphSegments(int _numSegments): numSegments(_numSegments)
+  GraphSegments(int _numSegments, int _numSlices, int _numElementsPerSlice): numSegments(_numSegments), numSlices(_numSlices), numElementsPerSlice(_numElementsPerSlice)
   {
     //alocate each graph segment
     for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph());
+      segments.push_back(new SegmentedGraph<int, int>(numSlices, numElementsPerSlice));
     }
-    numRows = ((int) sqrt(numSegments));
-    numCols = ((int) sqrt(numSegments));
   }
 
   ~GraphSegments(){
@@ -160,10 +159,10 @@ struct GraphSegments
 
 
 template <class DataT, class Vertex>
-void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphBlocks, int numSlices, int numItemsPerSegment)
+void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments,  int numSlices, int numElementsPerSegment, int numElementsPerSlice)
 {
-  int64_t numVertices = originalGraph->num_nodes;
-  int64_t numEdges = originalGraph->num_edges;
+  int64_t numVertices = originalGraph->num_nodes();
+  int64_t numEdges = originalGraph->num_edges();
   pvector<SGOffset> offsets = originalGraph->VertexOffsets();
   //int* vertexArray = originalGraph->vertexArray;
   //int* edgeArray = originalGraph->edgeArray;
@@ -180,7 +179,7 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
     for (NodeID v : originalGraph->out_neigh(u)){
       //int ngh = edgeArray[j];
       //int blk_id = i/blockDim * numBlocksPerRow + ngh/blockDim;
-      int segment_id = offsets(v)/numItemsPerSegment;
+      int segment_id = offsets[v]/numElementsPerSegment;
 
 #ifdef DEBUG3
       cout << "dst: " << u << " src: " << v << " blk_id: " << segment_id << endl;
@@ -191,7 +190,7 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
   }
 
   //Allocate eac block
-  graphBlocks->allocate();
+  graphSegments->allocate();
 
   //Add the edges for each block
   for (NodeID u : originalGraph->vertices()){
@@ -200,7 +199,7 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
     for (NodeID v : originalGraph->out_neigh(u)){
       //int ngh = edgeArray[j];                                                 
       //int blk_id = i/blockDim * numBlocksPerRow + ngh/blockDim;               
-      int segment_id = offsets(v)/numItemsPerSegment;
+      int segment_id = offsets[v]/numElementsPerSegment;
 #ifdef DEBUG3
       cout << "dst: " << u << " src: " << v << " blk_id: " << segment_id << endl;
 #endif

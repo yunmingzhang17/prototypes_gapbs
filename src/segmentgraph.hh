@@ -1,5 +1,6 @@
 #include <math.h>
 #include <vector>
+#include <assert.h>
 
 #include "graph.h"
 #include "pvector.h"
@@ -163,7 +164,8 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
 {
   int64_t numVertices = originalGraph->num_nodes();
   int64_t numEdges = originalGraph->num_edges();
-  pvector<SGOffset> offsets = originalGraph->VertexOffsets();
+  uint64_t * offsets = new uint64_t[numVertices];
+  //pvector<SGOffset> offsets = originalGraph->VertexOffsets();
   //int* vertexArray = originalGraph->vertexArray;
   //int* edgeArray = originalGraph->edgeArray;
 
@@ -171,20 +173,23 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
   //int numBlocksPerRow = ((int) sqrt(numBlocks));
   //int blockDim = ceil((double)numVertices/numBlocksPerRow);
 
+  uint64_t curOffset = 0;
+  for (NodeID u : originalGraph->vertices()){
+    assert(curOffset <= 2*originalGraph->num_edges());
+    offsets[u] = curOffset;
+    curOffset += originalGraph->out_degree(u);
+  }
 
   //Go through the original graph and count the number of vertices and edges for each block
+
   for (NodeID u : originalGraph->vertices()){
     //int start = vertexArray[i];
     //int end = (i == numVertices-1? numEdges:vertexArray[i+1]);
     for (NodeID v : originalGraph->out_neigh(u)){
-      //int ngh = edgeArray[j];
-      //int blk_id = i/blockDim * numBlocksPerRow + ngh/blockDim;
-
       int segment_id = offsets[v]/numElementsPerSegment;
       //#ifdef DEBUG
       //cout << "edge from u: " << u << " to v: " << v << endl;
       //#endif
-
       graphSegments->getSegmentedGraph(segment_id)->countIncomingEdge(v,u);
     }
   }

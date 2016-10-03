@@ -5,6 +5,8 @@
 #include <cinttypes>
 #include <iostream>
 #include <vector>
+#include <cilk/cilk.h>
+
 
 #include "benchmark.h"
 #include "builder.h"
@@ -81,7 +83,7 @@ size_t OrderedCount(const Graph &g) {
   int numElementsPerSegment = 1024*1024*4; 
   //4 k integers for 32 K L1 cache, usign about 50% of the cache
   int numElementsPerSlice = 1024*4;
-  int numSegments = (g.num_edges() + numElementsPerSegment)/numElementsPerSegment; 
+  int numSegments = (2*g.num_edges() + numElementsPerSegment)/numElementsPerSegment; 
   int numSlices = g.num_nodes()/numElementsPerSlice;
 
   cout << "number of segments: " << numSegments << endl;
@@ -89,6 +91,10 @@ size_t OrderedCount(const Graph &g) {
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, numSlices, numElementsPerSlice);
 
   BuildCacheSegmentedGraphs(&g, graphSegments, numSlices, numElementsPerSegment, numElementsPerSlice);
+
+  Timer segment_timer;
+  segment_timer.Start();
+
 
   //Perform computation within each segment
   for (int segmentId = 0; segmentId < numSegments; segmentId++){
@@ -144,6 +150,10 @@ size_t OrderedCount(const Graph &g) {
     total += local_total;
   }// end of segment for
 
+    segment_timer.Stop();
+    PrintTime("Segmented Triangular Counting Time", segment_timer.Seconds());
+
+
   return total;
 
 }
@@ -171,6 +181,7 @@ bool WorthRelabelling(const Graph &g) {
 
 // uses heuristic to see if worth relabeling
 size_t Hybrid(const Graph &g) {
+ 
   if (WorthRelabelling(g))
     return OrderedCount(Builder::RelabelByDegree(g));
   else

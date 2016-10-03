@@ -8,7 +8,7 @@ PAR_FLAG = -fopenmp
 
 else 
 
-CXX_FLAGS += -std=c++11 -O3 -Wall
+CXX_FLAGS += -std=c++11 -O3 -Wall -g
 PAR_FLAG = -fopenmp
 
 endif

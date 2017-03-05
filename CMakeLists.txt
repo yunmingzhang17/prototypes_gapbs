@@ -9,3 +9,5 @@ set(CMAKE_CXX_FLAGS "-openmp")
 include_directories("./src")
 
 add_executable(bc src/bc.cc)
+add_executable(bfs src/bfs.cc)
+add_executable(me src/multi_edgeset.cc)

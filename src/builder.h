@@ -280,6 +280,28 @@ class BuilderBase {
     PrintTime("Relabel", t.Seconds());
     return CSRGraph<NodeID_, DestID_, invert>(g.num_nodes(), index, neighs);
   }
-};
 
+    CSRGraph<NodeID_, DestID_, invert> MakeGraph(std::string filename) {
+        CSRGraph<NodeID_, DestID_, invert> g;
+        {  // extra scope to trigger earlier deletion of el (save memory)
+            EdgeList el;
+            if (filename != "") {
+                Reader<NodeID_, DestID_, WeightT_, invert> r(filename);
+                if ((r.GetSuffix() == ".sg") || (r.GetSuffix() == ".wsg")) {
+                    return r.ReadSerializedGraph();
+                } else {
+                    el = r.ReadFile(needs_weights_);
+                }
+            } else if (cli_.scale() != -1) {
+                Generator<NodeID_, DestID_> gen(cli_.scale(), cli_.degree());
+                el = gen.GenerateEL(cli_.uniform());
+            }
+            g = MakeGraphFromEL(el);
+        }
+        return SquishGraph(g);
+    }
+
+
+
+};
 #endif  // BUILDER_H_

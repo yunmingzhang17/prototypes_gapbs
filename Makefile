@@ -13,6 +13,10 @@ PAR_FLAG = -fopenmp
 
 endif
 
+ifeq ($(PROFILE), 1)
+CXX_FLAGS += -DPROFILE
+endif
+
 ifneq (,$(findstring icpc,$(CXX)))
 	PAR_FLAG = -openmp
 endif

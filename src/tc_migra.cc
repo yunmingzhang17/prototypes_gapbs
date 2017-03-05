@@ -95,6 +95,14 @@ size_t OrderedCount(const Graph &g) {
   Timer segment_timer;
   segment_timer.Start();
 
+  #ifdef PROFILE
+  ofstream outputFile;
+  outputFile.open("./.ready");
+  outputFile.close();
+  cout << "continue?" << "\n";
+  int c = getchar();
+
+  #endif
 
   //Perform computation within each segment
   for (int segmentId = 0; segmentId < numSegments; segmentId++){

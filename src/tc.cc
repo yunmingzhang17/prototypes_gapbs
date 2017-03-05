@@ -45,6 +45,16 @@ to relabel the graph, we use the heuristic in WorthRelabelling.
 using namespace std;
 
 size_t OrderedCount(const Graph &g) {
+
+  #ifdef PROFILE
+  ofstream outputFile;
+  outputFile.open("./.ready");
+  outputFile.close();
+  cout << "continue?" << "\n";
+  int c = getchar();
+
+  #endif
+
   size_t total = 0;
   #pragma omp parallel for reduction(+ : total) schedule(dynamic, 64)
   for (NodeID u=0; u < g.num_nodes(); u++) {

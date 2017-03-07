@@ -30,7 +30,7 @@ ifneq ($(SERIAL), 1)
 	CXX_FLAGS += $(PAR_FLAG)
 endif
 
-KERNELS = bc bfs cc pr sssp tc tc_migra
+KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec
 SUITE = $(KERNELS) converter
 
 .PHONY: all

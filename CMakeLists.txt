@@ -10,4 +10,4 @@ include_directories("./src")
 
 add_executable(bc src/bc.cc)
 add_executable(bfs src/bfs.cc)
-add_executable(me src/multi_edgeset.cc)
+add_executable(me src/multi_hop_simple_rec.cc)

@@ -133,7 +133,6 @@ int main(int argc, char* argv[]) {
     Graph trust_graph = b.MakeGraph("../test/graphs/filmtrust/trust_revised.el");
 
     //load in the second graph. Both graphs should have consistent vertex IDs.
-    //TODO: fix the weight type from int32_t to float
     WeightedFloatBuilder wb(cli);
     WFloatGraph ratings_graph = wb.MakeGraph("../test/graphs/filmtrust/ratings.wel");
 

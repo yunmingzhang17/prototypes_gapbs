@@ -16,6 +16,8 @@
 #include <queue>
 #include "timer.h"
 
+//#define DEBUG_DETAILS
+
 typedef float WeightFloatT;
 typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
 typedef CSRGraph<NodeID, WFloatNode> WFloatGraph;
@@ -37,13 +39,15 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
 
 
     //three hops of all the unique nodes
-    int max_hop = 3;
+    int max_hop = 2;
     int cur_hop = 0;
 
     while (!to_visit->empty() && cur_hop < max_hop){
         for (auto active_vertex : *to_visit){
             for (NodeID ngh : trust_graph.out_neigh(active_vertex)){
-                //cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
+#ifdef DEBUG_DETAILS
+                cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
+#endif
                 if (!visited.get_bit(ngh)) {
                     visited.set_bit(ngh);
                     to_visit_next->push_back(ngh);
@@ -83,12 +87,13 @@ vector<NodeID> Recommend(const WFloatGraph &ratings_graph, vector<NodeID> &trust
     }
     sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
 
-
-//    cout << "count map size: " << count_map.size() << endl;
-//    cout << "top counts: " << endl;
-//    for (int i = 0; i < 5; i++){
-//        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
-//    }
+#ifdef DEBUG_DETAILS
+    cout << "count map size: " << count_map.size() << endl;
+    cout << "top counts: " << endl;
+    for (int i = 0; i < 5; i++){
+        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+    }
+#endif
 
     return items;
 }
@@ -102,9 +107,11 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &rat
     t.Stop();
     PrintStep("Build Circle of Trust", t.Seconds());
 
-//    for (auto trustee : trust_circle){
-//        cout << "trustee: " << trustee << endl;
-//    }
+#ifdef DEBUG_DETAILS
+    for (auto trustee : trust_circle){
+        cout << "trustee: " << trustee << endl;
+    }
+#endif
 
     t.Start();
     Recommend(ratings_graph, trust_circle);

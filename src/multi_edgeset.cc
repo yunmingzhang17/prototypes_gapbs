@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <vector>
+#include <unordered_map>
 
 #include "benchmark.h"
 #include "bitmap.h"
@@ -12,7 +13,7 @@
 #include "graph.h"
 #include "platform_atomics.h"
 #include "pvector.h"
-#include "sliding_queue.h"
+#include <queue>
 #include "timer.h"
 
 typedef float WeightFloatT;
@@ -26,10 +27,35 @@ using namespace std;
 
 pvector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     pvector<NodeID> trust_circle;
-    for (NodeID ngh : trust_graph.out_neigh(source)){
-        trust_circle.push_back(ngh);
-        cout << "ngh: " << ngh << endl;
+    Bitmap visited(trust_graph.num_nodes());
+    vector<NodeID>* to_visit = new vector<NodeID>;
+    to_visit->reserve(trust_graph.num_nodes());
+    vector<NodeID>* to_visit_next = new vector<NodeID>;
+    to_visit_next->reserve(trust_graph.num_nodes());
+
+    to_visit->push_back(source);
+
+
+    //three hops of all the unique nodes
+    int max_hop = 2;
+    int cur_hop = 0;
+
+    while (!to_visit->empty() && cur_hop < max_hop){
+        for (auto active_vertex : *to_visit){
+            for (NodeID ngh : trust_graph.out_neigh(active_vertex)){
+                cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
+                if (!visited.get_bit(ngh)) {
+                    visited.set_bit(ngh);
+                    to_visit_next->push_back(ngh);
+                    trust_circle.push_back(ngh);
+                }
+            }
+        }
+        cur_hop++;
+        to_visit = to_visit_next;
+        to_visit_next = new vector<NodeID>();
     }
+
     return trust_circle;
 }
 
@@ -54,6 +80,10 @@ pvector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &ra
     t.Stop();
     PrintStep("Build Circle of Trust", t.Seconds());
 
+    for (auto trustee : trust_circle){
+        cout << "trustee: " << trustee << endl;
+    }
+
     t.Start();
     Recommend(ratings_graph, trust_circle);
     t.Stop();
@@ -71,7 +101,7 @@ int main(int argc, char* argv[]) {
 
     //load in the first graph
     Builder b(cli);
-    Graph trust_graph = b.MakeGraph("../test/graphs/filmtrust/trust.el");
+    Graph trust_graph = b.MakeGraph("../test/graphs/filmtrust/trust_revised.el");
 
     //load in the second graph. Both graphs should have consistent vertex IDs.
     //TODO: fix the weight type from int32_t to float

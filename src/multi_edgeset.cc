@@ -25,8 +25,8 @@ typedef BuilderBase<NodeID, WFloatNode, WeightFloatT > WeightedFloatBuilder;
 using namespace std;
 
 
-pvector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
-    pvector<NodeID> trust_circle;
+vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
+    vector<NodeID> trust_circle;
     Bitmap visited(trust_graph.num_nodes());
     vector<NodeID>* to_visit = new vector<NodeID>;
     to_visit->reserve(trust_graph.num_nodes());
@@ -37,13 +37,13 @@ pvector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
 
 
     //three hops of all the unique nodes
-    int max_hop = 2;
+    int max_hop = 3;
     int cur_hop = 0;
 
     while (!to_visit->empty() && cur_hop < max_hop){
         for (auto active_vertex : *to_visit){
             for (NodeID ngh : trust_graph.out_neigh(active_vertex)){
-                cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
+                //cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
                 if (!visited.get_bit(ngh)) {
                     visited.set_bit(ngh);
                     to_visit_next->push_back(ngh);
@@ -59,30 +59,52 @@ pvector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     return trust_circle;
 }
 
-pvector<NodeID> Recommend(const WFloatGraph &ratings_graph, pvector<NodeID> &trust_circle){
-    pvector<NodeID> items;
+vector<NodeID> Recommend(const WFloatGraph &ratings_graph, vector<NodeID> &trust_circle){
+    vector<NodeID> items;
+    unordered_map<NodeID,int32_t> count_map;
+    int top_count = 10;
+
     for (NodeID influencer : trust_circle){
         for (WFloatNode item : ratings_graph.out_neigh(influencer)){
             if (item.w > 3){
-                items.push_back(item.v);
+                //items.push_back(item.v);
+                if (count_map.find(item.v) != count_map.end()){
+                  count_map[item.v] = count_map[item.v]++;
+                }else{
+                    count_map[item.v] = 1;
+                }
             }
         }
     }
+
+    items.reserve(count_map.size());
+    for (auto kv : count_map){
+        items.push_back(kv.first);
+    }
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+
+
+//    cout << "count map size: " << count_map.size() << endl;
+//    cout << "top counts: " << endl;
+//    for (int i = 0; i < 5; i++){
+//        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+//    }
+
     return items;
 }
 
 
-pvector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &ratings_graph, NodeID source){
+vector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &ratings_graph, NodeID source){
     PrintStep("Source", static_cast<int64_t>(source));
     Timer t;
     t.Start();
-    pvector<NodeID> trust_circle = BuildTrustCircle(trust_graph, source);
+    vector<NodeID> trust_circle = BuildTrustCircle(trust_graph, source);
     t.Stop();
     PrintStep("Build Circle of Trust", t.Seconds());
 
-    for (auto trustee : trust_circle){
-        cout << "trustee: " << trustee << endl;
-    }
+//    for (auto trustee : trust_circle){
+//        cout << "trustee: " << trustee << endl;
+//    }
 
     t.Start();
     Recommend(ratings_graph, trust_circle);

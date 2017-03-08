@@ -29,12 +29,13 @@ class CLBase {
   int argc_;
   char** argv_;
   std::string name_;
-  std::string get_args_ = "f:g:hk:su:";
+  std::string get_args_ = "f:g:hk:su:z:";
   std::vector<std::string> help_strings_;
 
   int scale_ = -1;
   int degree_ = 16;
   std::string filename_ = "";
+  std::string second_filename_ = "";
   bool symmetrize_ = false;
   bool uniform_ = false;
 
@@ -61,6 +62,7 @@ class CLBase {
     AddHelpLine('u', "scale", "generate 2^scale uniform-random graph");
     AddHelpLine('k', "degree", "average degree for synthetic graph",
                 std::to_string(degree_));
+    AddHelpLine('z', "z", "load a second graph from file");
   }
 
   bool ParseArgs() {
@@ -86,6 +88,7 @@ class CLBase {
       case 'k': degree_ = atoi(opt_arg);                    break;
       case 's': symmetrize_ = true;                         break;
       case 'u': uniform_ = true; scale_ = atoi(opt_arg);    break;
+      case 'z': second_filename_ =  std::string(opt_arg);  break;
     }
   }
 
@@ -100,6 +103,7 @@ class CLBase {
   int scale() const { return scale_; }
   int degree() const { return degree_; }
   std::string filename() const { return filename_; }
+  std::string second_filename() const { return second_filename_; }
   bool symmetrize() const { return symmetrize_; }
   bool uniform() const { return uniform_; }
 };

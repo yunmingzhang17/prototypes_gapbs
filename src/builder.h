@@ -301,7 +301,26 @@ class BuilderBase {
         return SquishGraph(g);
     }
 
-
+    CSRGraph<NodeID_, DestID_, invert> MakeSecondGraph() {
+      CSRGraph<NodeID_, DestID_, invert> g;
+      {  // extra scope to trigger earlier deletion of el (save memory)
+        EdgeList el;
+        if (cli_.second_filename() != "") {
+          Reader<NodeID_, DestID_, WeightT_, invert> r(cli_.second_filename());
+          if ((r.GetSuffix() == ".sg") || (r.GetSuffix() == ".wsg")) {
+            return r.ReadSerializedGraph(cli_.second_filename());
+          } else {
+            //el = r.ReadFile(needs_weights_);
+            std::cout << "not yet supported" << std::endl;
+          }
+        } else if (cli_.scale() != -1) {
+          Generator<NodeID_, DestID_> gen(cli_.scale(), cli_.degree());
+          el = gen.GenerateEL(cli_.uniform());
+        }
+        g = MakeGraphFromEL(el);
+      }
+      return SquishGraph(g);
+    }
 
 };
 #endif  // BUILDER_H_

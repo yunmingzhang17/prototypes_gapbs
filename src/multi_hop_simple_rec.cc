@@ -16,13 +16,13 @@
 #include <queue>
 #include "timer.h"
 
-//#define DEBUG_DETAILS
+#define DEBUG_DETAILS
 
-typedef float WeightFloatT;
-typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
-typedef CSRGraph<NodeID, WFloatNode> WFloatGraph;
-typedef BuilderBase<NodeID, WFloatNode, WeightFloatT > WeightedFloatBuilder;
-
+//typedef float WeightFloatT;
+//typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
+//typedef CSRGraph<NodeID, WFloatNode> WFloatGraph;
+//typedef BuilderBase<NodeID, WFloatNode, WeightFloatT > WeightedFloatBuilder;
+//
 
 using namespace std;
 
@@ -39,14 +39,14 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
 
 
     //three hops of all the unique nodes
-    int max_hop = 2;
+    int max_hop = 3;
     int cur_hop = 0;
 
     while (!to_visit->empty() && cur_hop < max_hop){
         for (auto active_vertex : *to_visit){
             for (NodeID ngh : trust_graph.out_neigh(active_vertex)){
 #ifdef DEBUG_DETAILS
-                cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
+                //cout << "active_vertex: " << active_vertex << " ngh: " << ngh << endl;
 #endif
                 if (!visited.get_bit(ngh)) {
                     visited.set_bit(ngh);
@@ -63,13 +63,13 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     return trust_circle;
 }
 
-vector<NodeID> Recommend(const WFloatGraph &ratings_graph, vector<NodeID> &trust_circle){
+vector<NodeID> Recommend(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
     vector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
     int top_count = 10;
 
     for (NodeID influencer : trust_circle){
-        for (WFloatNode item : ratings_graph.out_neigh(influencer)){
+        for (WNode item : ratings_graph.out_neigh(influencer)){
             if (item.w > 3){
                 //items.push_back(item.v);
                 if (count_map.find(item.v) != count_map.end()){
@@ -99,7 +99,7 @@ vector<NodeID> Recommend(const WFloatGraph &ratings_graph, vector<NodeID> &trust
 }
 
 
-vector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &ratings_graph, NodeID source){
+vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source){
     PrintStep("Source", static_cast<int64_t>(source));
     Timer t;
     t.Start();
@@ -108,9 +108,10 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &rat
     PrintStep("Build Circle of Trust", t.Seconds());
 
 #ifdef DEBUG_DETAILS
-    for (auto trustee : trust_circle){
-        cout << "trustee: " << trustee << endl;
-    }
+//    for (auto trustee : trust_circle){
+//        cout << "trustee: " << trustee << endl;
+//    }
+    cout << "number of trustees: " << trust_circle.size() << endl;
 #endif
 
     t.Start();
@@ -123,18 +124,20 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WFloatGraph &rat
 
 int main(int argc, char* argv[]) {
     CLApp cli(argc, argv, "multi_edgeset app");
-//    if (!cli.ParseArgs())
-//        return -1;
+    if (!cli.ParseArgs())
+        return -1;
 
 
 
     //load in the first graph
     Builder b(cli);
-    Graph trust_graph = b.MakeGraph("../test/graphs/filmtrust/trust_revised.el");
+    //Graph trust_graph = b.MakeGraph("../test/graphs/filmtrust/trust_revised.el");
+    Graph trust_graph = b.MakeGraph();
 
     //load in the second graph. Both graphs should have consistent vertex IDs.
-    WeightedFloatBuilder wb(cli);
-    WFloatGraph ratings_graph = wb.MakeGraph("../test/graphs/filmtrust/ratings.wel");
+    WeightedBuilder wb(cli);
+    //WFloatGraph ratings_graph = wb.MakeGraph("../test/graphs/filmtrust/ratings.wel");
+    WGraph ratings_graph = wb.MakeSecondGraph();
 
     //pick a series of starting points
     SourcePicker<Graph> sp(trust_graph);

@@ -32,6 +32,7 @@ using namespace std;
 vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     vector<NodeID> trust_circle;
     Bitmap visited(trust_graph.num_nodes());
+    visited.reset();
     vector<NodeID>* to_visit = new vector<NodeID>;
     to_visit->reserve(trust_graph.num_nodes());
     vector<NodeID>* to_visit_next = new vector<NodeID>;

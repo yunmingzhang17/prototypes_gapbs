@@ -95,7 +95,8 @@ vector<NodeID> Recommend(const WGraph &ratings_graph, vector<NodeID> &trust_circ
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
     cout << "top counts: " << endl;
-    for (int i = 0; i < 5; i++){
+    int count = 5 < count_map.size() ? 5 : count_map.size();
+    for (int i = 0; i < count; i++){
         cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
 #endif

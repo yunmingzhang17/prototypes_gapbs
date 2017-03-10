@@ -69,7 +69,7 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     return trust_circle;
 }
 
-vector<NodeID> Recommend(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
     vector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
     int top_count = 10;
@@ -98,14 +98,48 @@ vector<NodeID> Recommend(const WGraph &ratings_graph, vector<NodeID> &trust_circ
     cout << "top counts: " << endl;
     int count = 5 < count_map.size() ? 5 : count_map.size();
     for (int i = 0; i < count; i++){
-        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
 #endif
 
     return items;
 }
 
+vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
+    vector<NodeID> items;
+    vector<int> count_map(num_items);
+    int top_count = 10;
+    for (int i = 0; i < num_items; i++){
+        count_map[i] = 0;
+    }
 
+    for (NodeID influencer : trust_circle){
+        for (WNode item : ratings_graph.out_neigh(influencer)){
+            if (item.w > 3){
+                //items.push_back(item.v);
+                count_map[item.v]++;
+            }
+        }
+    }
+
+    //items.reserve(count_map.size());
+    for (int i = 0; i < num_items; i++){
+        if (count_map[i] > 0) {
+            items.push_back(i);
+        }
+    }
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+
+#ifdef DEBUG_DETAILS
+    cout << "count map size: " << count_map.size() << endl;
+    cout << "top counts: " << endl;
+    int count = 5 < count_map.size() ? 5 : count_map.size();
+    for (int i = 0; i < count; i++){
+        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+    }
+#endif
+
+    return items;
+}
 
 
 vector<NodeID> DoSerialRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source){
@@ -124,12 +158,21 @@ vector<NodeID> DoSerialRecommendation(const Graph &trust_graph, const WGraph &ra
 #endif
 
     t.Start();
-    Recommend(ratings_graph, trust_circle);
+    RecommendHashMap(ratings_graph, trust_circle);
     t.Stop();
-    PrintStep("Serial Recommendation", t.Seconds());
+    PrintStep("Serial Hash Map based Recommendation", t.Seconds());
+
+
+    int32_t douban_num_items = 58550;
+    t.Start();
+    RecommendArray(ratings_graph, trust_circle, douban_num_items);
+    t.Stop();
+    PrintStep("Serial Array based Recommendation", t.Seconds());
 
     return trust_circle;
 }
+
+
 
 
 vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
@@ -153,10 +196,10 @@ vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
 #ifdef DEBUG_DETAILS
         cout << "queue size: " << queue.size() << endl;
 #endif
-        #pragma omp parallel
+#pragma omp parallel
         {
             QueueBuffer<NodeID> lqueue(queue);
-            #pragma omp for
+#pragma omp for
             for (auto q_iter = queue.begin(); q_iter < queue.end(); q_iter++) {
                 NodeID u = *q_iter;
                 for (NodeID ngh : trust_graph.out_neigh(u)) {
@@ -184,7 +227,8 @@ vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
     return trust_circle;
 }
 
-vector<NodeID> ParRecommend(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+// A version that uses local unordered_maps in each thread and later merge them
+vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
     vector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
     int top_count = 10;
@@ -238,6 +282,45 @@ vector<NodeID> ParRecommend(const WGraph &ratings_graph, vector<NodeID> &trust_c
 }
 
 
+// A version that uses hash locked hashmap
+vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
+    vector<NodeID> items;
+    vector<int> count_map(num_items);
+    int top_count = 10;
+    for (int i = 0; i < num_items; i++){
+        count_map[i] = 0;
+    }
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < trust_circle.size(); i++){
+        NodeID influencer = trust_circle[i];
+        for (WNode item : ratings_graph.out_neigh(influencer)){
+            if (item.w > 3){
+                //items.push_back(item.v);
+                fetch_and_add(count_map[item.v],1);
+            }
+        }
+    }
+
+    //items.reserve(count_map.size());
+    for (int i = 0; i < num_items; i++){
+        if (count_map[i] > 0) {
+            items.push_back(i);
+        }
+    }
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+
+#ifdef DEBUG_DETAILS
+    cout << "count map size: " << count_map.size() << endl;
+    cout << "top counts: " << endl;
+    int count = 5 < count_map.size() ? 5 : count_map.size();
+    for (int i = 0; i < count; i++){
+        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+    }
+#endif
+
+    return items;
+}
 
 
 vector<NodeID> DoParallelRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source){
@@ -255,10 +338,20 @@ vector<NodeID> DoParallelRecommendation(const Graph &trust_graph, const WGraph &
     cout << "number of trustees: " << trust_circle.size() << endl;
 #endif
 
+
+
+
     t.Start();
-    ParRecommend(ratings_graph, trust_circle);
+    ParRecommendLocalMap(ratings_graph, trust_circle);
     t.Stop();
-    PrintStep("Parallel Recommendation", t.Seconds());
+    PrintStep("Parallel Local Map Recommendation", t.Seconds());
+
+    int32_t douban_num_items = 58550;
+
+    t.Start();
+    ParRecommendArray(ratings_graph, trust_circle, douban_num_items);
+    t.Stop();
+    PrintStep("Parallel Local Map Recommendation", t.Seconds());
 
     return trust_circle;
 }

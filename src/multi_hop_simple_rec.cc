@@ -364,6 +364,13 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
     return top_items;
 }
 
+
+void PrintStats(const Graph &g, vector<NodeID> &items) {
+    for (int i = 0; i < items.size(); i++){
+        cout << "item: " << items[i]  << endl;
+    }
+}
+
 int main(int argc, char* argv[]) {
     CLMultiEdgeSet cli(argc, argv, "multi_edgeset app");
     if (!cli.ParseArgs())
@@ -382,19 +389,35 @@ int main(int argc, char* argv[]) {
     WGraph ratings_graph = wb.MakeSecondGraph();
 
     //pick a series of starting points
-    SourcePicker<Graph> sp(trust_graph);
-    for (int i = 0; i < 10; i++){
-        NodeID start = sp.PickNext();
-        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), FALSE);
-        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), TRUE);
-    }
+    SourcePicker<Graph> sp(trust_graph, cli.start_vertex());
+//    for (int i = 0; i < 10; i++){
+//        NodeID start = sp.PickNext();
+//        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), FALSE);
+//        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), TRUE);
+//    }
 
+    int num_items = cli.num_items();
 
-//    auto BFSBound = [&sp] (const Graph &g) { return DOBFS(g, sp.PickNext()); };
-//    SourcePicker<Graph> vsp(g, cli.start_vertex());
-//    auto VerifierBound = [&vsp] (const Graph &g, const pvector<NodeID> &parent) {
-//        return BFSVerifier(g, vsp.PickNext(), parent);
-//    };
-//    BenchmarkKernel(cli, g, BFSBound, PrintBFSStats, VerifierBound);
+    auto SimpleRecBound = [&sp, &ratings_graph, &num_items] (const Graph &g) {
+        return DoRecommendation(g, ratings_graph, sp.PickNext(), num_items, TRUE); };
+    SourcePicker<Graph> vsp(trust_graph, cli.start_vertex());
+
+    auto VerifierBound = [&vsp, &ratings_graph, &num_items] (const Graph &g, const vector<NodeID> &parallel_top_items) {
+        vector<NodeID> serial_top_items = DoRecommendation(g, ratings_graph, vsp.PickNext(), num_items, FALSE);
+        bool output = TRUE;
+
+        if (serial_top_items.size() != parallel_top_items.size())
+            output = FALSE;
+
+        for (int i = 0; i < serial_top_items.size(); i++){
+            if (serial_top_items[i] != parallel_top_items[i]){
+                output = FALSE;
+                break;
+            }
+        }
+
+        return output;
+    };
+    BenchmarkKernel(cli, trust_graph, SimpleRecBound, PrintStats, VerifierBound);
     return 0;
 }

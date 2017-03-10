@@ -244,4 +244,32 @@ class CLConvert : public CLBase {
   bool out_sg() const { return out_sg_; }
 };
 
+
+class CLMultiEdgeSet : public CLApp {
+    int num_people_ = 0;
+    int num_items_ = 0;
+
+
+public:
+    CLMultiEdgeSet(int argc, char** argv, std::string name)
+            : CLApp(argc, argv, name) {
+        get_args_ += "p:i:";
+        AddHelpLine('p', "num_people", "number of people in the dataset");
+        AddHelpLine('i', "num_items", "number of items in the dataset");
+    }
+
+    void HandleArg(signed char opt, char* opt_arg) override {
+        switch (opt) {
+            case 'p': num_people_ = atoi(opt_arg);               break;
+            case 'i': num_items_ = atoi(opt_arg);               break;
+            default: CLApp::HandleArg(opt, opt_arg);
+        }
+    }
+
+    int num_items() const {return num_items_; }
+    int num_people() const {return num_people_; }
+
+};
+
+
 #endif  // COMMAND_LINE_H_

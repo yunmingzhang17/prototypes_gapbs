@@ -18,7 +18,10 @@
 #include "timer.h"
 #include "sliding_queue.h"
 
-#define DEBUG_DETAILS
+//#define DEBUG_DETAILS
+
+//#define USE_HASHMAP
+#define USE_ARRAY
 
 //typedef float WeightFloatT;
 //typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
@@ -72,7 +75,6 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
 vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
     vector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
-    int top_count = 10;
 
     for (NodeID influencer : trust_circle){
         for (WNode item : ratings_graph.out_neigh(influencer)){
@@ -98,7 +100,9 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
     cout << "top counts: " << endl;
     int count = 5 < count_map.size() ? 5 : count_map.size();
     for (int i = 0; i < count; i++){
+        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
+
 #endif
 
     return items;
@@ -107,7 +111,6 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
 vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
     vector<NodeID> items;
     vector<int> count_map(num_items);
-    int top_count = 10;
     for (int i = 0; i < num_items; i++){
         count_map[i] = 0;
     }
@@ -140,40 +143,6 @@ vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust
 
     return items;
 }
-
-
-vector<NodeID> DoSerialRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source){
-    PrintStep("Source", static_cast<int64_t>(source));
-    Timer t;
-    t.Start();
-    vector<NodeID> trust_circle = BuildTrustCircle(trust_graph, source);
-    t.Stop();
-    PrintStep("Build Circle of Trust", t.Seconds());
-
-#ifdef DEBUG_DETAILS
-//    for (auto trustee : trust_circle){
-//        cout << "trustee: " << trustee << endl;
-//    }
-    cout << "number of trustees: " << trust_circle.size() << endl;
-#endif
-
-    t.Start();
-    RecommendHashMap(ratings_graph, trust_circle);
-    t.Stop();
-    PrintStep("Serial Hash Map based Recommendation", t.Seconds());
-
-
-    int32_t douban_num_items = 58550;
-    t.Start();
-    RecommendArray(ratings_graph, trust_circle, douban_num_items);
-    t.Stop();
-    PrintStep("Serial Array based Recommendation", t.Seconds());
-
-    return trust_circle;
-}
-
-
-
 
 vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
     vector<NodeID> trust_circle;
@@ -323,41 +292,80 @@ vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &tr
 }
 
 
-vector<NodeID> DoParallelRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source){
+vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source, int num_items, bool is_parallel){
     PrintStep("Source", static_cast<int64_t>(source));
-    Timer t;
-    t.Start();
-    vector<NodeID> trust_circle = ParBuildTrustCircle(trust_graph, source);
-    t.Stop();
-    PrintStep("Parallel Build Circle of Trust", t.Seconds());
+    vector<NodeID> top_items(5);
+    vector<NodeID> items;
+
+    if (is_parallel){
+        //parallel execution
+        Timer t;
+        t.Start();
+        vector<NodeID> trust_circle = ParBuildTrustCircle(trust_graph, source);
+        t.Stop();
+        PrintStep("Parallel Build Circle of Trust", t.Seconds());
 
 #ifdef DEBUG_DETAILS
-//    for (auto trustee : trust_circle){
-//        cout << "trustee: " << trustee << endl;
-//    }
-    cout << "number of trustees: " << trust_circle.size() << endl;
+        //    for (auto trustee : trust_circle){
+        //        cout << "trustee: " << trustee << endl;
+        //    }
+            cout << "number of trustees: " << trust_circle.size() << endl;
 #endif
 
+#ifdef USE_HASHMAP
+        t.Start();
+        items = ParRecommendLocalMap(ratings_graph, trust_circle);
+        t.Stop();
+        PrintStep("Parallel Hash Map Recommendation", t.Seconds());
+#endif
 
+#ifdef USE_ARRAY
+        t.Start();
+        items = ParRecommendArray(ratings_graph, trust_circle, num_items);
+        t.Stop();
+        PrintStep("Parallel Array Recommendation", t.Seconds());
+#endif
 
+    } else {
+        //serial execution
+        Timer t;
+        t.Start();
+        vector<NodeID> trust_circle = BuildTrustCircle(trust_graph, source);
+        t.Stop();
+        PrintStep("Build Circle of Trust", t.Seconds());
 
-    t.Start();
-    ParRecommendLocalMap(ratings_graph, trust_circle);
-    t.Stop();
-    PrintStep("Parallel Hash Map Recommendation", t.Seconds());
+#ifdef DEBUG_DETAILS
+        //    for (auto trustee : trust_circle){
+        //        cout << "trustee: " << trustee << endl;
+        //    }
+            cout << "number of trustees: " << trust_circle.size() << endl;
+#endif
 
-    int32_t douban_num_items = 58550;
+#ifdef USE_HASHMAP
+        t.Start();
+        items = RecommendHashMap(ratings_graph, trust_circle);
+        t.Stop();
+        PrintStep("Serial Hash Map based Recommendation", t.Seconds());
+#endif
 
-    t.Start();
-    ParRecommendArray(ratings_graph, trust_circle, douban_num_items);
-    t.Stop();
-    PrintStep("Parallel Array Recommendation", t.Seconds());
+#ifdef USE_ARRAY
+        t.Start();
+        items = RecommendArray(ratings_graph, trust_circle, num_items);
+        t.Stop();
+        PrintStep("Serial Array based Recommendation", t.Seconds());
+#endif
 
-    return trust_circle;
+    }
+
+    int count = 5 < items.size() ? 5 : items.size();
+    for (int i = 0; i < count; i++){
+        top_items.push_back(items[i]);
+    }
+    return top_items;
 }
 
 int main(int argc, char* argv[]) {
-    CLApp cli(argc, argv, "multi_edgeset app");
+    CLMultiEdgeSet cli(argc, argv, "multi_edgeset app");
     if (!cli.ParseArgs())
         return -1;
 
@@ -377,8 +385,8 @@ int main(int argc, char* argv[]) {
     SourcePicker<Graph> sp(trust_graph);
     for (int i = 0; i < 10; i++){
         NodeID start = sp.PickNext();
-        DoSerialRecommendation(trust_graph, ratings_graph, start);
-        DoParallelRecommendation(trust_graph, ratings_graph, start);
+        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), FALSE);
+        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), TRUE);
     }
 
 

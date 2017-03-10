@@ -1,0 +1,392 @@
+Read Time:           0.07298
+Read Time:           0.13140
+Source:                25881
+queue size: 1
+queue size: 1
+queue size: 29
+Build Circle of Trust                0.00023
+number of trustees: 1275
+count map size: 14502
+top counts: 
+Serial Hash Map based Recommendation                0.02069
+count map size: 58550
+top counts: 
+item: 153 count: 463
+item: 145 count: 453
+item: 2498 count: 407
+item: 632 count: 399
+item: 2435 count: 386
+Serial Array based Recommendation                0.00214
+Source:                25881
+queue size: 1
+queue size: 1
+queue size: 29
+Parallel Build Circle of Trust                0.00043
+number of trustees: 1275
+count map size: 14502
+top counts: 
+item: 153 count: 463
+item: 145 count: 453
+item: 2498 count: 407
+item: 632 count: 399
+item: 2435 count: 386
+Parallel Hash Map Recommendation                0.02896
+count map size: 58550
+top counts: 
+item: 153 count: 463
+item: 145 count: 453
+item: 2498 count: 407
+item: 632 count: 399
+item: 2435 count: 386
+Parallel Array Recommendation                0.00167
+Source:               113352
+queue size: 1
+queue size: 1
+queue size: 1
+Build Circle of Trust                0.00021
+number of trustees: 2
+count map size: 205
+top counts: 
+Serial Hash Map based Recommendation                0.00018
+count map size: 58550
+top counts: 
+item: 1423 count: 2
+item: 2446 count: 1
+item: 2418 count: 1
+item: 2419 count: 1
+item: 2426 count: 1
+Serial Array based Recommendation                0.00045
+Source:               113352
+queue size: 1
+queue size: 1
+queue size: 1
+Parallel Build Circle of Trust                0.00068
+number of trustees: 2
+count map size: 205
+top counts: 
+item: 1423 count: 2
+item: 2429 count: 1
+item: 258 count: 1
+item: 583 count: 1
+item: 19806 count: 1
+Parallel Hash Map Recommendation                0.00050
+count map size: 58550
+top counts: 
+item: 1423 count: 2
+item: 2446 count: 1
+item: 2418 count: 1
+item: 2419 count: 1
+item: 2426 count: 1
+Parallel Array Recommendation                0.00047
+Source:                35060
+queue size: 1
+queue size: 33
+queue size: 2008
+Build Circle of Trust                0.00181
+number of trustees: 45849
+count map size: 45001
+top counts: 
+Serial Hash Map based Recommendation                0.28831
+count map size: 58550
+top counts: 
+item: 153 count: 16343
+item: 145 count: 16215
+item: 2498 count: 15298
+item: 632 count: 14271
+item: 2435 count: 13511
+Serial Array based Recommendation                0.04700
+Source:                35060
+queue size: 1
+queue size: 33
+queue size: 2008
+Parallel Build Circle of Trust                0.00109
+number of trustees: 45849
+count map size: 45001
+top counts: 
+item: 153 count: 16343
+item: 145 count: 16215
+item: 2498 count: 15298
+item: 632 count: 14271
+item: 2435 count: 13511
+Parallel Hash Map Recommendation                0.17649
+count map size: 58550
+top counts: 
+item: 153 count: 16343
+item: 145 count: 16215
+item: 2498 count: 15298
+item: 632 count: 14271
+item: 2435 count: 13511
+Parallel Array Recommendation                0.02012
+Source:                35881
+queue size: 1
+queue size: 3
+queue size: 267
+Build Circle of Trust                0.00049
+number of trustees: 11067
+count map size: 35926
+top counts: 
+Serial Hash Map based Recommendation                0.10816
+count map size: 58550
+top counts: 
+item: 153 count: 4300
+item: 145 count: 4105
+item: 2498 count: 3989
+item: 632 count: 3576
+item: 2435 count: 3378
+Serial Array based Recommendation                0.01355
+Source:                35881
+queue size: 1
+queue size: 3
+queue size: 267
+Parallel Build Circle of Trust                0.00110
+number of trustees: 11067
+count map size: 35926
+top counts: 
+item: 153 count: 4300
+item: 145 count: 4105
+item: 2498 count: 3989
+item: 632 count: 3576
+item: 2435 count: 3378
+Parallel Hash Map Recommendation                0.09071
+count map size: 58550
+top counts: 
+item: 153 count: 4300
+item: 145 count: 4105
+item: 2498 count: 3989
+item: 632 count: 3576
+item: 2435 count: 3378
+Parallel Array Recommendation                0.00696
+Source:                52948
+queue size: 1
+queue size: 2
+queue size: 47
+Build Circle of Trust                0.00023
+number of trustees: 1708
+count map size: 18887
+top counts: 
+Serial Hash Map based Recommendation                0.02901
+count map size: 58550
+top counts: 
+item: 145 count: 629
+item: 153 count: 606
+item: 632 count: 579
+item: 2498 count: 556
+item: 2435 count: 478
+Serial Array based Recommendation                0.00445
+Source:                52948
+queue size: 1
+queue size: 2
+queue size: 47
+Parallel Build Circle of Trust                0.00083
+number of trustees: 1708
+count map size: 18887
+top counts: 
+item: 145 count: 629
+item: 153 count: 606
+item: 632 count: 579
+item: 2498 count: 556
+item: 2435 count: 478
+Parallel Hash Map Recommendation                0.03665
+count map size: 58550
+top counts: 
+item: 145 count: 629
+item: 153 count: 606
+item: 632 count: 579
+item: 2498 count: 556
+item: 2435 count: 478
+Parallel Array Recommendation                0.00216
+Source:               120064
+queue size: 1
+queue size: 2
+queue size: 45
+Build Circle of Trust                0.00026
+number of trustees: 3915
+count map size: 26248
+top counts: 
+Serial Hash Map based Recommendation                0.05423
+count map size: 58550
+top counts: 
+item: 145 count: 1448
+item: 153 count: 1420
+item: 2498 count: 1325
+item: 632 count: 1266
+item: 1125 count: 1189
+Serial Array based Recommendation                0.00578
+Source:               120064
+queue size: 1
+queue size: 2
+queue size: 45
+Parallel Build Circle of Trust                0.00060
+number of trustees: 3915
+count map size: 26248
+top counts: 
+item: 145 count: 1448
+item: 153 count: 1420
+item: 2498 count: 1325
+item: 632 count: 1266
+item: 1125 count: 1189
+Parallel Hash Map Recommendation                0.05960
+count map size: 58550
+top counts: 
+item: 145 count: 1448
+item: 153 count: 1420
+item: 2498 count: 1325
+item: 632 count: 1266
+item: 1125 count: 1189
+Parallel Array Recommendation                0.00356
+Source:                30870
+queue size: 1
+queue size: 25
+queue size: 861
+Build Circle of Trust                0.00118
+number of trustees: 30006
+count map size: 42219
+top counts: 
+Serial Hash Map based Recommendation                0.21583
+count map size: 58550
+top counts: 
+item: 153 count: 10744
+item: 145 count: 10572
+item: 2498 count: 9944
+item: 632 count: 9421
+item: 2435 count: 8837
+Serial Array based Recommendation                0.03324
+Source:                30870
+queue size: 1
+queue size: 25
+queue size: 861
+Parallel Build Circle of Trust                0.00103
+number of trustees: 30006
+count map size: 42219
+top counts: 
+item: 153 count: 10744
+item: 145 count: 10572
+item: 2498 count: 9944
+item: 632 count: 9421
+item: 2435 count: 8837
+Parallel Hash Map Recommendation                0.11671
+count map size: 58550
+top counts: 
+item: 153 count: 10744
+item: 145 count: 10572
+item: 2498 count: 9944
+item: 632 count: 9421
+item: 2435 count: 8837
+Parallel Array Recommendation                0.01441
+Source:                66738
+queue size: 1
+queue size: 1
+queue size: 17
+Build Circle of Trust                0.00173
+number of trustees: 480
+count map size: 10006
+top counts: 
+Serial Hash Map based Recommendation                0.01009
+count map size: 58550
+top counts: 
+item: 153 count: 192
+item: 2498 count: 178
+item: 145 count: 170
+item: 29 count: 161
+item: 632 count: 158
+Serial Array based Recommendation                0.00139
+Source:                66738
+queue size: 1
+queue size: 1
+queue size: 17
+Parallel Build Circle of Trust                0.00098
+number of trustees: 480
+count map size: 10006
+top counts: 
+item: 153 count: 192
+item: 2498 count: 178
+item: 145 count: 170
+item: 29 count: 161
+item: 632 count: 158
+Parallel Hash Map Recommendation                0.01720
+count map size: 58550
+top counts: 
+item: 153 count: 192
+item: 2498 count: 178
+item: 145 count: 170
+item: 29 count: 161
+item: 632 count: 158
+Parallel Array Recommendation                0.00117
+Source:                14435
+queue size: 1
+queue size: 17
+queue size: 1865
+Build Circle of Trust                0.01165
+number of trustees: 43466
+count map size: 44576
+top counts: 
+Serial Hash Map based Recommendation                0.27980
+count map size: 58550
+top counts: 
+item: 153 count: 15558
+item: 145 count: 15284
+item: 2498 count: 14555
+item: 632 count: 13640
+item: 2435 count: 12845
+Serial Array based Recommendation                0.04562
+Source:                14435
+queue size: 1
+queue size: 17
+queue size: 1865
+Parallel Build Circle of Trust                0.00101
+number of trustees: 43466
+count map size: 44576
+top counts: 
+item: 153 count: 15558
+item: 145 count: 15284
+item: 2498 count: 14555
+item: 632 count: 13640
+item: 2435 count: 12845
+Parallel Hash Map Recommendation                0.12367
+count map size: 58550
+top counts: 
+item: 153 count: 15558
+item: 145 count: 15284
+item: 2498 count: 14555
+item: 632 count: 13640
+item: 2435 count: 12845
+Parallel Array Recommendation                0.01995
+Source:               119190
+queue size: 1
+queue size: 12
+queue size: 658
+Build Circle of Trust                0.00223
+number of trustees: 21900
+count map size: 38285
+top counts: 
+Serial Hash Map based Recommendation                0.16601
+count map size: 58550
+top counts: 
+item: 153 count: 7792
+item: 145 count: 7666
+item: 2498 count: 7257
+item: 632 count: 6992
+item: 2435 count: 6579
+Serial Array based Recommendation                0.02424
+Source:               119190
+queue size: 1
+queue size: 12
+queue size: 658
+Parallel Build Circle of Trust                0.00109
+number of trustees: 21900
+count map size: 38285
+top counts: 
+item: 153 count: 7792
+item: 145 count: 7666
+item: 2498 count: 7257
+item: 632 count: 6992
+item: 2435 count: 6579
+Parallel Hash Map Recommendation                0.09985
+count map size: 58550
+top counts: 
+item: 153 count: 7792
+item: 145 count: 7666
+item: 2498 count: 7257
+item: 632 count: 6992
+item: 2435 count: 6579
+Parallel Array Recommendation                0.01064

@@ -329,7 +329,7 @@ vector<NodeID> DoParallelRecommendation(const Graph &trust_graph, const WGraph &
     t.Start();
     vector<NodeID> trust_circle = ParBuildTrustCircle(trust_graph, source);
     t.Stop();
-    PrintStep("Build Circle of Trust", t.Seconds());
+    PrintStep("Parallel Build Circle of Trust", t.Seconds());
 
 #ifdef DEBUG_DETAILS
 //    for (auto trustee : trust_circle){
@@ -344,14 +344,14 @@ vector<NodeID> DoParallelRecommendation(const Graph &trust_graph, const WGraph &
     t.Start();
     ParRecommendLocalMap(ratings_graph, trust_circle);
     t.Stop();
-    PrintStep("Parallel Local Map Recommendation", t.Seconds());
+    PrintStep("Parallel Hash Map Recommendation", t.Seconds());
 
     int32_t douban_num_items = 58550;
 
     t.Start();
     ParRecommendArray(ratings_graph, trust_circle, douban_num_items);
     t.Stop();
-    PrintStep("Parallel Local Map Recommendation", t.Seconds());
+    PrintStep("Parallel Array Recommendation", t.Seconds());
 
     return trust_circle;
 }
@@ -375,10 +375,12 @@ int main(int argc, char* argv[]) {
 
     //pick a series of starting points
     SourcePicker<Graph> sp(trust_graph);
-    NodeID start = sp.PickNext();
-    DoSerialRecommendation(trust_graph, ratings_graph, start);
+    for (int i = 0; i < 10; i++){
+        NodeID start = sp.PickNext();
+        DoSerialRecommendation(trust_graph, ratings_graph, start);
+        DoParallelRecommendation(trust_graph, ratings_graph, start);
+    }
 
-    DoParallelRecommendation(trust_graph, ratings_graph, start);
 
 //    auto BFSBound = [&sp] (const Graph &g) { return DOBFS(g, sp.PickNext()); };
 //    SourcePicker<Graph> vsp(g, cli.start_vertex());

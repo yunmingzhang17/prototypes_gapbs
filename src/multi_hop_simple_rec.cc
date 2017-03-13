@@ -18,7 +18,7 @@
 #include "timer.h"
 #include "sliding_queue.h"
 
-//#define DEBUG_DETAILS
+#define DEBUG_DETAILS
 
 //#define USE_HASHMAP
 #define USE_ARRAY
@@ -116,6 +116,11 @@ vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust
     }
 
     for (NodeID influencer : trust_circle){
+        //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+        if (influencer >= ratings_graph.num_nodes()){
+            continue;
+        }
+
         for (WNode item : ratings_graph.out_neigh(influencer)){
             if (item.w > 3){
                 //items.push_back(item.v);
@@ -135,7 +140,7 @@ vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
     cout << "top counts: " << endl;
-    int count = 5 < count_map.size() ? 5 : count_map.size();
+    int count = 5 < items.size() ? 5 : items.size();
     for (int i = 0; i < count; i++){
         cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
@@ -192,7 +197,7 @@ vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
 
         cur_hop++;
     }
-
+    cout << "trust circle size: " << trust_circle.size() << endl;
     return trust_circle;
 }
 
@@ -255,7 +260,8 @@ vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> 
 vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
     vector<NodeID> items;
     vector<int> count_map(num_items);
-    int top_count = 10;
+
+    #pragma omp parallel for
     for (int i = 0; i < num_items; i++){
         count_map[i] = 0;
     }
@@ -263,6 +269,10 @@ vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &tr
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < trust_circle.size(); i++){
         NodeID influencer = trust_circle[i];
+        //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+        if (influencer >= ratings_graph.num_nodes()){
+            continue;
+        }
         for (WNode item : ratings_graph.out_neigh(influencer)){
             if (item.w > 3){
                 //items.push_back(item.v);
@@ -282,7 +292,7 @@ vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &tr
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
     cout << "top counts: " << endl;
-    int count = 5 < count_map.size() ? 5 : count_map.size();
+    int count = 5 < items.size() ? 5 : items.size();
     for (int i = 0; i < count; i++){
         cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
@@ -396,7 +406,7 @@ int main(int argc, char* argv[]) {
 //        DoRecommendation(trust_graph, ratings_graph, start, cli.num_items(), TRUE);
 //    }
 
-    int num_items = cli.num_items();
+    int num_items = cli.num_items() + 1;//deal with potential ID issue
 
     auto SimpleRecBound = [&sp, &ratings_graph, &num_items] (const Graph &g) {
         return DoRecommendation(g, ratings_graph, sp.PickNext(), num_items, TRUE); };

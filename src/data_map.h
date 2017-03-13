@@ -19,6 +19,7 @@ public:
     virtual ~DataMap(){}
     virtual void init(V init_val) = 0;
     virtual void find_and_add(T index, V val) = 0;
+    virtual V find(T index) = 0;
     virtual int num_updated() = 0;
     virtual pvector<T> get_top_keys(int top_count) = 0;
     virtual pvector<T> get_updated_keys() = 0;
@@ -45,13 +46,18 @@ public:
         init_val_ = init_val;
     }
 
+    virtual V find(T index) {
+        return data_map_[index];
+    }
+
+
     virtual void find_and_add(T index, V val) {
         // Data Map does not contain the entry
         if (data_map_.find(index) != data_map_.end()) {
+            data_map_[index] = data_map_[index] + val;
+        } else {
             data_map_[index] = init_val_ + val;
             num_updated_++;
-        } else {
-            data_map_[index] = data_map_[index] + val;
         }
     }
 
@@ -64,21 +70,49 @@ public:
         size_t output_count = top_count < num_updated_ ? top_count : num_updated_;
         pvector<T> output_buffer(output_count);
 
+        int i = 0;
         for (auto kv : data_map_){
-            buffer.push_back(kv.first);
+            buffer[i] = kv.first;
+            i++;
         }
-        sort(buffer.begin(), buffer.end(), [this] (T const& a, T const& b) { return data_map_[a] > data_map_[b];});
+        
+        sort(buffer.begin(), buffer.end(), [this] (NodeID const& a, NodeID const& b) {
+            bool output = FALSE;
+            if (data_map_[a] > data_map_[b]){
+                output = TRUE;
+            } else if (data_map_[a] == data_map_[b]){
+                if (a > b){
+                    output = TRUE;
+                }
+            }
+            return output;
+        });
+
         for (int i = 0; i < output_count; i++){
-            output_buffer.push_back(buffer[i]);
+            output_buffer[i] = buffer[i];
         }
         return output_buffer;
     }
 
     virtual pvector<T> get_updated_keys() {
         pvector<T> buffer(num_updated_);
+        int i = 0;
         for (auto kv : data_map_){
-            buffer.push_back(kv.first);
+            buffer[i] = kv.first;
+            i++;
         }
+        sort(buffer.begin(), buffer.end(), [this] (NodeID const& a, NodeID const& b) {
+            bool output = FALSE;
+            if (data_map_[a] > data_map_[b]){
+                output = TRUE;
+            } else if (data_map_[a] == data_map_[b]){
+                if (a > b){
+                    output = TRUE;
+                }
+            }
+            return output;
+        });
+
         return buffer;
     }
 };

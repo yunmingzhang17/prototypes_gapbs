@@ -19,10 +19,10 @@
 #include "sliding_queue.h"
 #include "data_map.h"
 
-//#define DEBUG_DETAILS
+#define DEBUG_DETAILS
 
-//#define USE_HASHMAP
-#define USE_ARRAY
+#define USE_HASHMAP
+//#define USE_ARRAY
 
 //typedef float WeightFloatT;
 //typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
@@ -91,11 +91,11 @@ pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &tr
     }
 
 #ifdef DEBUG_DETAILS
-    cout << "count map size: " << count_map.size() << endl;
+    cout << "count map size: " << data_map.num_updated() << endl;
     cout << "top counts: " << endl;
-    int count = 5 < count_map.size() ? 5 : count_map.size();
-    for (int i = 0; i < count; i++){
-        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+    pvector<NodeID> items = data_map.get_top_keys(5);
+    for (int i = 0; i < items.size(); i++){
+        cout << "item: " << items[i] << " count: " << data_map.find(items[i]) << endl;
     }
 #endif
 
@@ -103,8 +103,8 @@ pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &tr
 
 }
 
-vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
-    vector<NodeID> items;
+pvector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+    pvector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
 
     for (NodeID influencer : trust_circle){
@@ -128,7 +128,17 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
     for (auto kv : count_map){
         items.push_back(kv.first);
     }
-    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) {
+        bool output = FALSE;
+        if (count_map[a] > count_map[b]){
+            output = TRUE;
+        } else if (count_map[a] == count_map[b]){
+            if (a > b){
+                output = TRUE;
+            }
+        }
+        return output;
+    });
 
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
@@ -142,8 +152,8 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
     return items;
 }
 
-vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
-    vector<NodeID> items;
+pvector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
+    pvector<NodeID> items;
     vector<int> count_map(num_items);
     for (int i = 0; i < num_items; i++){
         count_map[i] = 0;
@@ -169,7 +179,17 @@ vector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust
             items.push_back(i);
         }
     }
-    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) {
+        bool output = FALSE;
+        if (count_map[a] > count_map[b]){
+            output = TRUE;
+        } else if (count_map[a] == count_map[b]){
+            if (a > b){
+                output = TRUE;
+            }
+        }
+        return output;
+    });
 
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
@@ -236,8 +256,8 @@ vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
 }
 
 // A version that uses local unordered_maps in each thread and later merge them
-vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
-    vector<NodeID> items;
+pvector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+    pvector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
     int top_count = 10;
 
@@ -280,7 +300,17 @@ vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> 
     for (auto kv : count_map){
         items.push_back(kv.first);
     }
-    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) {
+        bool output = FALSE;
+        if (count_map[a] > count_map[b]){
+            output = TRUE;
+        } else if (count_map[a] == count_map[b]){
+            if (a > b){
+                output = TRUE;
+            }
+        }
+        return output;
+    });
 
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
@@ -296,8 +326,8 @@ vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> 
 
 
 // A version that uses hash locked hashmap
-vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
-    vector<NodeID> items;
+pvector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
+    pvector<NodeID> items;
     vector<int> count_map(num_items);
 
     #pragma omp parallel for
@@ -326,7 +356,17 @@ vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &tr
             items.push_back(i);
         }
     }
-    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) { return count_map[a] > count_map[b];});
+    sort(items.begin(), items.end(), [&count_map] (NodeID const& a, NodeID const& b) {
+        bool output = FALSE;
+        if (count_map[a] > count_map[b]){
+            output = TRUE;
+        } else if (count_map[a] == count_map[b]){
+            if (a > b){
+                output = TRUE;
+            }
+        }
+        return output;
+    });
 
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
@@ -344,7 +384,7 @@ vector<NodeID> ParRecommendArray(const WGraph &ratings_graph, vector<NodeID> &tr
 vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_graph, NodeID source, int num_items, bool is_parallel){
     PrintStep("Source", static_cast<int64_t>(source));
     vector<NodeID> top_items(5);
-    vector<NodeID> items;
+    pvector<NodeID> items;
 
     if (is_parallel){
         //parallel execution
@@ -392,7 +432,8 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
 
 #ifdef USE_HASHMAP
         t.Start();
-        items = RecommendHashMap(ratings_graph, trust_circle);
+        //items = RecommendHashMap(ratings_graph, trust_circle);
+        items = RecommendDataMap(ratings_graph, trust_circle);
         t.Stop();
         PrintStep("Serial Hash Map based Recommendation", t.Seconds());
 #endif
@@ -408,7 +449,7 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
 
     int count = 5 < items.size() ? 5 : items.size();
     for (int i = 0; i < count; i++){
-        top_items.push_back(items[i]);
+        top_items[i] = items[i];
     }
     return top_items;
 }
@@ -455,12 +496,18 @@ int main(int argc, char* argv[]) {
         vector<NodeID> serial_top_items = DoRecommendation(g, ratings_graph, vsp.PickNext(), num_items, FALSE);
         bool output = TRUE;
 
-        if (serial_top_items.size() != parallel_top_items.size())
+        if (serial_top_items.size() != parallel_top_items.size()){
             output = FALSE;
+            cout << " size of output do not match " << endl;
+        }
+
 
         for (int i = 0; i < serial_top_items.size(); i++){
             if (serial_top_items[i] != parallel_top_items[i]){
                 output = FALSE;
+                cout << " items do not match " << endl;
+                cout << "serial: " << serial_top_items[i] << endl;
+                cout << "parallel: " << parallel_top_items[i] << endl;
                 break;
             }
         }

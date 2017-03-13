@@ -17,8 +17,9 @@
 #include <curses.h>
 #include "timer.h"
 #include "sliding_queue.h"
+#include "data_map.h"
 
-#define DEBUG_DETAILS
+//#define DEBUG_DETAILS
 
 //#define USE_HASHMAP
 #define USE_ARRAY
@@ -70,6 +71,36 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     }
 
     return trust_circle;
+}
+
+pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+
+    UnorderedMapDataMap<NodeID, int> data_map(trust_circle.size());
+    data_map.init(0);
+
+    for (NodeID influencer : trust_circle){
+        //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+        if (influencer >= ratings_graph.num_nodes()){
+            continue;
+        }
+        for (WNode item : ratings_graph.out_neigh(influencer)){
+            if (item.w > 3){
+                data_map.find_and_add(item.v, 1);
+            }
+        }
+    }
+
+#ifdef DEBUG_DETAILS
+    cout << "count map size: " << count_map.size() << endl;
+    cout << "top counts: " << endl;
+    int count = 5 < count_map.size() ? 5 : count_map.size();
+    for (int i = 0; i < count; i++){
+        cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
+    }
+#endif
+
+    return data_map.get_updated_keys();
+
 }
 
 vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){

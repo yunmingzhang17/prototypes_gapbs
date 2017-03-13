@@ -21,8 +21,8 @@
 
 #define DEBUG_DETAILS
 
-#define USE_HASHMAP
-//#define USE_ARRAY
+//#define USE_HASHMAP
+#define USE_ARRAY
 
 //typedef float WeightFloatT;
 //typedef NodeWeight<NodeID, WeightFloatT> WFloatNode;
@@ -73,9 +73,8 @@ vector<NodeID> BuildTrustCircle(const Graph &trust_graph, NodeID source){
     return trust_circle;
 }
 
-pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
+pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle, DataMap<NodeID, int> &data_map){
 
-    UnorderedMapDataMap<NodeID, int> data_map(trust_circle.size());
     data_map.init(0);
 
     for (NodeID influencer : trust_circle){
@@ -433,14 +432,17 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
 #ifdef USE_HASHMAP
         t.Start();
         //items = RecommendHashMap(ratings_graph, trust_circle);
-        items = RecommendDataMap(ratings_graph, trust_circle);
+        UnorderedMapDataMap<NodeID, int> data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, data_map);
         t.Stop();
         PrintStep("Serial Hash Map based Recommendation", t.Seconds());
 #endif
 
 #ifdef USE_ARRAY
         t.Start();
-        items = RecommendArray(ratings_graph, trust_circle, num_items);
+        ArrayDataMap<NodeID, int> data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, data_map);
+        //items = RecommendArray(ratings_graph, trust_circle, num_items);
         t.Stop();
         PrintStep("Serial Array based Recommendation", t.Seconds());
 #endif

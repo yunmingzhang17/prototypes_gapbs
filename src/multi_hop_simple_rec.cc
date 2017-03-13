@@ -77,6 +77,10 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
     unordered_map<NodeID,int32_t> count_map;
 
     for (NodeID influencer : trust_circle){
+        //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+        if (influencer >= ratings_graph.num_nodes()){
+            continue;
+        }
         for (WNode item : ratings_graph.out_neigh(influencer)){
             if (item.w > 3){
                 //items.push_back(item.v);
@@ -102,7 +106,6 @@ vector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tru
     for (int i = 0; i < count; i++){
         cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
-
 #endif
 
     return items;
@@ -213,6 +216,10 @@ vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> 
         #pragma omp for schedule(dynamic)
         for (int i = 0; i < trust_circle.size(); i++) {
             NodeID influencer = trust_circle[i];
+            //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+            if (influencer >= ratings_graph.num_nodes()){
+                continue;
+            }
             for (WNode item : ratings_graph.out_neigh(influencer)) {
                 if (item.w > 3) {
                     //items.push_back(item.v);
@@ -247,7 +254,8 @@ vector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID> 
 #ifdef DEBUG_DETAILS
     cout << "count map size: " << count_map.size() << endl;
     cout << "top counts: " << endl;
-    for (int i = 0; i < 5; i++){
+    int count = 5 < count_map.size() ? 5 : count_map.size();
+    for (int i = 0; i < count; i++){
         cout << "item: " << items[i] << " count: " << count_map[items[i]] << endl;
     }
 #endif

@@ -1,6 +1,7 @@
 # See LICENSE.txt for license details.
 CXX=icpc
 
+INCLUDE_DIR=./include/
 
 ifeq ($(DEBUG), 1)
 CXX_FLAGS += -std=c++11 -O0 -g -Wall -DDEBUG
@@ -29,6 +30,9 @@ endif
 ifneq ($(SERIAL), 1)
 	CXX_FLAGS += $(PAR_FLAG)
 endif
+
+
+CXX_FLAGS += -I ${INCLUDE_DIR}
 
 KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec
 SUITE = $(KERNELS) converter

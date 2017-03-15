@@ -7,7 +7,8 @@ SET(CMAKE_CXX_COMPILER /Users/yunmingzhang/Documents/intel/bin/icpc)
 set(CMAKE_CXX_FLAGS "-openmp")
 
 include_directories("./src")
-
+include_directories("./include")
+#include_directories("/Users/yunmingzhang/Documents/Research/google_hash/sparsehash/install_dir/include")
 add_executable(bc src/bc.cc)
 add_executable(bfs src/bfs.cc)
 add_executable(converter src/converter.cc)

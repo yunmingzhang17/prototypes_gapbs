@@ -19,9 +19,11 @@
 #include "sliding_queue.h"
 #include "data_map.h"
 
+
 #define DEBUG_DETAILS
 
-//#define USE_HASHMAP
+#define USE_STL_HASHMAP
+#define USE_GOOGLE_HASHMAP
 #define USE_ARRAY
 
 //typedef float WeightFloatT;
@@ -400,7 +402,7 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
             cout << "number of trustees: " << trust_circle.size() << endl;
 #endif
 
-#ifdef USE_HASHMAP
+#ifdef USE_STL_HASHMAP
         t.Start();
         items = ParRecommendLocalMap(ratings_graph, trust_circle);
         t.Stop();
@@ -429,19 +431,27 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
             cout << "number of trustees: " << trust_circle.size() << endl;
 #endif
 
-#ifdef USE_HASHMAP
+#ifdef USE_STL_HASHMAP
         t.Start();
         //items = RecommendHashMap(ratings_graph, trust_circle);
-        UnorderedMapDataMap<NodeID, int> data_map(num_items);
-        items = RecommendDataMap(ratings_graph, trust_circle, data_map);
+        UnorderedMapDataMap<NodeID, int> unordered_data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, unordered_data_map);
         t.Stop();
-        PrintStep("Serial Hash Map based Recommendation", t.Seconds());
+        PrintStep("STL Serial Hash Map based Recommendation", t.Seconds());
+#endif
+
+#ifdef USE_GOOGLE_HASHMAP
+        t.Start();
+        GoogleHashDataMap<NodeID, int> google_data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, google_data_map);
+        t.Stop();
+        PrintStep("Google Serial Hash Map based Recommendation", t.Seconds());
 #endif
 
 #ifdef USE_ARRAY
         t.Start();
-        ArrayDataMap<NodeID, int> data_map(num_items);
-        items = RecommendDataMap(ratings_graph, trust_circle, data_map);
+        ArrayDataMap<NodeID, int> array_data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, array_data_map);
         //items = RecommendArray(ratings_graph, trust_circle, num_items);
         t.Stop();
         PrintStep("Serial Array based Recommendation", t.Seconds());

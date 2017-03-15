@@ -105,6 +105,7 @@ pvector<NodeID> RecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &tr
 
 }
 
+// DEPRECATED, now it is implemented using DataMap interface
 pvector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle){
     pvector<NodeID> items;
     unordered_map<NodeID,int32_t> count_map;
@@ -154,6 +155,7 @@ pvector<NodeID> RecommendHashMap(const WGraph &ratings_graph, vector<NodeID> &tr
     return items;
 }
 
+// DEPRECATED, now it is implemented using DataMap interface
 pvector<NodeID> RecommendArray(const WGraph &ratings_graph, vector<NodeID> &trust_circle, int32_t num_items){
     pvector<NodeID> items;
     vector<int> count_map(num_items);
@@ -255,6 +257,38 @@ vector<NodeID> ParBuildTrustCircle(const Graph &trust_graph, NodeID source){
     }
     cout << "trust circle size: " << trust_circle.size() << endl;
     return trust_circle;
+}
+
+
+pvector<NodeID> ParRecommendDataMap(const WGraph &ratings_graph, vector<NodeID> &trust_circle, DataMap<NodeID, int> &data_map){
+
+    data_map.init(0);
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < trust_circle.size(); i++){
+        NodeID influencer = trust_circle[i];
+        //A node that is present in the social graph, but is larger than the largest people node in ratings graph
+        if (influencer >= ratings_graph.num_nodes()){
+            continue;
+        }
+        for (WNode item : ratings_graph.out_neigh(influencer)){
+            if (item.w > 3){
+                data_map.find_and_add(item.v, 1);
+            }
+        }
+    }
+
+#ifdef DEBUG_DETAILS
+    cout << "count map size: " << data_map.num_updated() << endl;
+    cout << "top counts: " << endl;
+    pvector<NodeID> items = data_map.get_top_keys(5);
+    for (int i = 0; i < items.size(); i++){
+        cout << "item: " << items[i] << " count: " << data_map.find(items[i]) << endl;
+    }
+#endif
+
+    return data_map.get_updated_keys();
+
 }
 
 // A version that uses local unordered_maps in each thread and later merge them
@@ -416,6 +450,16 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
         t.Stop();
         PrintStep("Parallel Array Recommendation", t.Seconds());
 #endif
+
+#ifdef USE_LIGRA_SPARSESET
+        t.Start();
+        LigraSparseDataMap<NodeID, int> ligra_data_map(num_items);
+        items = ParRecommendDataMap(ratings_graph, trust_circle, ligra_data_map);
+        t.Stop();
+        PrintStep("Parallel Ligra Sparse Set based Recommendation", t.Seconds());
+#endif
+
+
 
     } else {
         //serial execution

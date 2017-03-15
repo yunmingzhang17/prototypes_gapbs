@@ -24,6 +24,7 @@
 
 #define USE_STL_HASHMAP
 #define USE_GOOGLE_HASHMAP
+#define USE_LIGRA_SPARSESET
 #define USE_ARRAY
 
 //typedef float WeightFloatT;
@@ -456,6 +457,16 @@ vector<NodeID> DoRecommendation(const Graph &trust_graph, const WGraph &ratings_
         t.Stop();
         PrintStep("Serial Array based Recommendation", t.Seconds());
 #endif
+
+#ifdef USE_LIGRA_SPARSESET
+        t.Start();
+        LigraSparseDataMap<NodeID, int> ligra_data_map(num_items);
+        items = RecommendDataMap(ratings_graph, trust_circle, ligra_data_map);
+        t.Stop();
+        PrintStep("Ligra Serial Sparse Set based Recommendation", t.Seconds());
+#endif
+
+
 
     }
 

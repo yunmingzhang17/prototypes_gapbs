@@ -234,7 +234,8 @@ private:
 public:
     GoogleHashDataMap<T,V> (size_t init_size) : DataMap<T,V> (){
         num_updated_ = 0;
-        data_map_.set_empty_key(NULL);
+        data_map_.set_empty_key(-1); //be careful with setting empty key as NULL, it would crash when key is 0
+
     }
 
     virtual ~GoogleHashDataMap() {

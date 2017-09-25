@@ -253,6 +253,7 @@ public:
     }
 
     // increment if found, otherwise, initialize
+    inline
     virtual void find_and_add(T index, V val) {
         // Data Map does not contain the entry
         if (data_map_.find(index) != data_map_.end()) {

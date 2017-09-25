@@ -297,6 +297,8 @@ pvector<NodeID> ParRecommendLocalMap(const WGraph &ratings_graph, vector<NodeID>
     unordered_map<NodeID,int32_t> count_map;
     int top_count = 10;
 
+
+
     #pragma omp parallel
     {
         unordered_map<NodeID,int32_t> local_count_map;

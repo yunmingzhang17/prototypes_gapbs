@@ -100,14 +100,14 @@ public:
         zero_ = zero;
     }
 
-    void init() {
-
-        m((uintT) 1 << log2RoundUp((uintT) (_loadFactor * size) + 100));
-        mask(m - 1);
-        TA(newA(kvPair, m));
-        empty = make_pair(UINT_E_MAX, zero);
-        clearA(TA, m, empty);
-    }
+//    void init() {
+//
+//        m((uintT) 1 << log2RoundUp((uintT) (loadFactor * size) + 100));
+//        mask(m - 1);
+//        TA(newA(kvPair, m));
+//        empty = make_pair(UINT_E_MAX, zero);
+//        clearA(TA, m, empty);
+//    }
 
     // Deletes the allocated arrays
     void del() {

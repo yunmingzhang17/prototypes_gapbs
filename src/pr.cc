@@ -37,6 +37,8 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   const ScoreT base_score = (1.0f - kDamp) / g.num_nodes();
   pvector<ScoreT> scores(g.num_nodes(), init_score);
   pvector<ScoreT> outgoing_contrib(g.num_nodes());
+
+
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
     #pragma omp parallel for
@@ -79,6 +81,13 @@ bool PRVerifier(const Graph &g, const pvector<ScoreT> &scores,
   const ScoreT base_score = (1.0f - kDamp) / g.num_nodes();
   pvector<ScoreT> incomming_sums(g.num_nodes(), 0);
   double error = 0;
+
+    float total_scores = 0;
+    for (NodeID u : g.vertices()){
+        total_scores += scores[u];
+    }
+    std::cout << "total scores: " << total_scores << std::endl;
+
   for (NodeID u : g.vertices()) {
     ScoreT outgoing_contrib = scores[u] / g.out_degree(u);
     for (NodeID v : g.out_neigh(u))
@@ -102,6 +111,7 @@ int main(int argc, char* argv[]) {
   auto PRBound = [&cli] (const Graph &g) {
     return PageRankPull(g, cli.max_iters(), cli.tolerance());
   };
+
   auto VerifierBound = [&cli] (const Graph &g, const pvector<ScoreT> &scores) {
     return PRVerifier(g, scores, cli.tolerance());
   };

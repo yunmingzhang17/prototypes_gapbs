@@ -29,8 +29,8 @@ def find_largest_node(filename):
                     max_src = src
                 if dst > max_dst:
                     max_dst = dst
-    print " max src: " + str(max_src) + "\n"
-    print " max dst: " + str(max_dst) + "\n"
+    print (" max src: " + str(max_src) + "\n")
+    print (" max dst: " + str(max_dst) + "\n")
 
 filename = sys.argv[1]
 #convert_float_to_int_weight(filename)

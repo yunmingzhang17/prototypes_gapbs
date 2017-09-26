@@ -20,7 +20,7 @@
 #include "data_map.h"
 
 
-#define DEBUG_DETAILS
+//#define DEBUG_DETAILS
 
 #define USE_STL_HASHMAP
 #define USE_GOOGLE_HASHMAP
@@ -558,7 +558,7 @@ int main(int argc, char* argv[]) {
     int num_items = cli.num_items() + 1;//deal with potential ID issue
 
     auto SimpleRecBound = [&sp, &ratings_graph, &num_items] (const Graph &g) {
-        return DoRecommendation(g, ratings_graph, sp.PickNext(), num_items, TRUE); };
+        return DoRecommendation(g, ratings_graph, sp.PickNext(), num_items, FALSE); };
     SourcePicker<Graph> vsp(trust_graph, cli.start_vertex());
 
     auto VerifierBound = [&vsp, &ratings_graph, &num_items] (const Graph &g, const vector<NodeID> &parallel_top_items) {

@@ -217,7 +217,7 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
 #ifdef DEBUG
   cout << endl;
 #endif
-  cout << "allocating segments" << endl;
+
   //Allocate eac block
   graphSegments->allocate(numVertices);
 

@@ -47,7 +47,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   cout << "number of segments: " << numSegments << endl;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, numSlices, numElementsPerSlice);
   BuildCacheSegmentedGraphs(&g, graphSegments, numSlices, numElementsPerSegment, numElementsPerSlice);
-  cout << "built segmented graph" << endl;
+
   pvector<ScoreT> scores(g.num_nodes(), init_score);
   //pvector<ScoreT> outgoing_contrib(g.num_nodes());
 
@@ -64,11 +64,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
       int localVertexId;
 
       nodemask_t mask;
-      struct bitmask bmask;
+      struct bitmask *bmaskp = numa_bitmask_alloc(num_numa_node);
       nodemask_zero(&mask);
       nodemask_set_compat(&mask, segmentId % num_numa_node);
-      copy_nodemask_to_bitmask(&mask, &bmask);
-      numa_bind(&bmask);
+      copy_nodemask_to_bitmask(&mask, bmaskp);
+      numa_bind(bmaskp);
 
 #ifdef DEBUG2
       cout << "in segment: " << segmentId << endl;
@@ -124,6 +124,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
       scores[n] = sg->scores[n];
     }
   }
+
   return scores;
 }
 

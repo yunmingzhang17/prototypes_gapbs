@@ -1,16 +1,22 @@
 #include <math.h>
 #include <vector>
 #include <assert.h>
+#include <numa.h>
 
 #include "graph.h"
 #include "pvector.h"
 
 using namespace std;
 
+int num_numa_node = numa_num_configured_nodes();
+
 template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
-
+  //pvector<ScoreT> scores;
+  float * scores;
+  float * outgoing_contrib;
+  int totalVCnt;
   int * graphId;
   int * edgeArray;
   int * vertexArray;
@@ -41,21 +47,35 @@ public:
 
   ~SegmentedGraph()
   {
-    delete[] graphId;
-    delete[] edgeArray;
-    delete[] vertexArray;
+    numa_free(scores, sizeof(float) * totalVCnt);
+    numa_free(outgoing_contrib, sizeof(float) * totalVCnt);
+    numa_free(graphId, sizeof(int) * numVertices);
+    numa_free(edgeArray, sizeof(int) * numVertices);
+    numa_free(vertexArray, sizeof(int) * numVertices);
   }
 
 
-  void allocate() 
+  void allocate(int total_v_cnt, int segment_id)
   {
-    vertexArray = new int[numVertices + 1]; // start,end of last              
+    float init_val = 1.0f / numVertices;
+    int node = segment_id % num_numa_node;
+
+    scores = (float *)numa_alloc_onnode(sizeof(float) * total_v_cnt, node);
+
+    #pragma omp parallel for
+    for (int i = 0; i < total_v_cnt; i++)
+      scores[i] = init_val;
+
+    outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * total_v_cnt, node);
+
+    vertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numVertices + 1), node); // start,end of last
     vertexArray[numVertices] = numEdges;
-    edgeArray = new int[numEdges];
-    graphId = new int[numVertices];
+    edgeArray = (int *)numa_alloc_onnode(sizeof(int) * numEdges, node);
+    graphId = (int *)numa_alloc_onnode(sizeof(int) * numVertices, node);
     lastVertex = 0;
     lastEdge = 0;
     lastLocalIndex = 0;
+    totalVCnt = total_v_cnt;
     allocated = true;
   }
 
@@ -139,9 +159,9 @@ struct GraphSegments
    //delete blocks;
   }
 
-  void allocate(){
+  void allocate(int total_v_cnt) {
     for (int i=0; i<numSegments; i++){
-      segments[i]->allocate();
+      segments[i]->allocate(total_v_cnt, i);
     }
   }
 
@@ -197,9 +217,9 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
 #ifdef DEBUG
   cout << endl;
 #endif
-
+  cout << "allocating segments" << endl;
   //Allocate eac block
-  graphSegments->allocate();
+  graphSegments->allocate(numVertices);
 
   //Add the edges for each block
   for (NodeID u : originalGraph->vertices()){

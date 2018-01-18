@@ -14,12 +14,20 @@ PAR_FLAG = -fopenmp
 
 endif
 
+ifeq ($(DEBUG_MSG), 1)
+CXX_FLAGS += -DDEBUG_MSG
+endif
+
+ifdef NUMA
+CXX_FLAGS += -lnuma
+endif
+
 ifeq ($(PROFILE), 1)
 CXX_FLAGS += -DPROFILE
 endif
 
 ifneq (,$(findstring icpc,$(CXX)))
-	PAR_FLAG = -openmp
+	PAR_FLAG = -qopenmp
 endif
 
 ifneq (,$(findstring sunCC,$(CXX)))

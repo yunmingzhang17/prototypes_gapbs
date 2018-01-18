@@ -4,12 +4,16 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
+#include <numa.h>
+#include <omp.h>
+#include <assert.h>
 
 #include "benchmark.h"
 #include "builder.h"
 #include "command_line.h"
 #include "graph.h"
 #include "pvector.h"
+#include "segmentgraph.hh"
 
 
 /*
@@ -31,6 +35,39 @@ using namespace std;
 typedef float ScoreT;
 const float kDamp = 0.85;
 
+static int threads;
+static int sockets;
+static int threads_per_socket;
+
+void numa_thread_init(void) {
+  threads = numa_num_configured_cpus();
+  sockets = numa_num_configured_nodes();
+  threads_per_socket = threads / sockets;
+  assert(numa_available() != -1);
+
+  // char nodestring[sockets*2+1];
+  // nodestring[0] = '0';
+  // for (int s_i = 1;s_i < sockets; s_i++) {
+  //   nodestring[s_i*2-1] = ',';
+  //   nodestring[s_i*2] = '0'+s_i;
+  // }
+  // struct bitmask *nodemask = numa_parse_nodestring(nodestring);
+
+  omp_set_dynamic(0);
+  omp_set_num_threads(threads);
+
+#pragma omp parallel num_threads(threads)
+  {
+    int thread_id = omp_get_thread_num();
+    int socket_id = thread_id / threads_per_socket;
+    assert(numa_run_on_node(socket_id) == 0);
+
+#ifdef DEBUG_MSG
+    cout << "thread=" << thread_id << " socket=" << socket_id << " cpu=" << sched_getcpu() << endl;
+#endif
+  }
+}
+
 pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
                              double epsilon = 0) {
   const ScoreT init_score = 1.0f / g.num_nodes();
@@ -38,25 +75,72 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   pvector<ScoreT> scores(g.num_nodes(), init_score);
   pvector<ScoreT> outgoing_contrib(g.num_nodes());
 
+  /* bind memory */
+  int num_nodes = g.num_nodes();
+  int numSegments = num_numa_node;
+  int segmentRange = (num_nodes + numSegments) / numSegments;
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
+  BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
+
+  /* bind threads */
+  numa_thread_init();
+
+  Timer numa_timer;
+  numa_timer.Start();
 
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
+
+    /* stage 1: compute outgoing_contrib, global sequential */
     #pragma omp parallel for
     for (NodeID n=0; n < g.num_nodes(); n++)
       outgoing_contrib[n] = scores[n] / g.out_degree(n);
-    #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
-    for (NodeID u=0; u < g.num_nodes(); u++) {
-      ScoreT incoming_total = 0;
-      for (NodeID v : g.in_neigh(u))
-        incoming_total += outgoing_contrib[v];
-      ScoreT old_score = scores[u];
-      scores[u] = base_score + kDamp * incoming_total;
-      error += fabs(scores[u] - old_score);
+
+    /* stage 2: pull from neighbor, used to be global random, now local random */
+#pragma omp parallel num_threads(threads)
+  {
+    int thread_id = omp_get_thread_num();
+    int socket_id = thread_id / threads_per_socket;
+    auto sg = graphSegments->getSegmentedGraph(socket_id);
+    int* segmentVertexArray = sg->dstVertexArray;
+    int* segmentEdgeArray = sg->edgeArray;
+
+    int vertices_per_thread = (sg->numDstVertices + threads_per_socket) / threads_per_socket;
+    int start_index = (thread_id % threads_per_socket) * vertices_per_thread;
+    int end_index = min(start_index + vertices_per_thread, sg->numDstVertices);
+
+    for (int localVertexId = start_index; localVertexId < end_index; localVertexId++) {
+      int u = sg->graphId[localVertexId];
+      int start_neighbor = segmentVertexArray[localVertexId];
+      int end_neighbor = segmentVertexArray[localVertexId+1];
+      for (int neighbor = start_neighbor; neighbor < end_neighbor; neighbor++) {
+	int v = segmentEdgeArray[neighbor];
+	sg->incoming_total[u] += outgoing_contrib[v];
+      }
     }
-    printf(" %2d    %lf\n", iter, error);
-    if (error < epsilon)
-      break;
   }
+
+  /* stage 3 reduce scores, global sequential */
+#pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
+  for (NodeID n=0; n < num_nodes; n++) {
+    ScoreT old_score = scores[n];
+    ScoreT global_incoming_total = 0;
+    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+      auto sg = graphSegments->getSegmentedGraph(segmentId);
+      global_incoming_total += sg->incoming_total[n];
+      sg->incoming_total[n] = 0;
+    }
+    scores[n] = base_score + kDamp * global_incoming_total;
+    error += fabs(scores[n] - old_score);
+  }
+
+  printf(" %2d    %lf\n", iter, error);
+  if (error < epsilon)
+    break;
+  }
+
+  numa_timer.Stop();
+  PrintTime("NUMA Time", numa_timer.Seconds());
   return scores;
 }
 

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <numa.h>
+#include <omp.h>
 
 #include "benchmark.h"
 #include "builder.h"
@@ -34,97 +35,83 @@ const float kDamp = 0.85;
 
 pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
                              double epsilon = 0) {
-  const ScoreT init_score = 1.0f / g.num_nodes();
-  const ScoreT base_score = (1.0f - kDamp) / g.num_nodes();
+  int num_nodes = g.num_nodes();
+  const ScoreT init_score = 1.0f / num_nodes;
+  const ScoreT base_score = (1.0f - kDamp) / num_nodes;
 
   //Build the segmented graph from g
-  //4 M integers for 32 M LLC cache, using about 50% of the cache
-  int numElementsPerSegment = 1024*1024*4; 
-  //4 k integers for 32 K L1 cache, usign about 50% of the cache
-  int numElementsPerSlice = 1024*4;
-  int numSegments = (2*g.num_edges() + numElementsPerSegment)/numElementsPerSegment; 
-  int numSlices = g.num_nodes()/numElementsPerSlice;
-  cout << "number of segments: " << numSegments << endl;
-  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, numSlices, numElementsPerSlice);
-  BuildCacheSegmentedGraphs(&g, graphSegments, numSlices, numElementsPerSegment, numElementsPerSlice);
+  int numSegments = 1;//num_numa_node;
+  int segmentRange = (num_nodes + numSegments) / numSegments;
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
+  BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
 
-  pvector<ScoreT> scores(g.num_nodes(), init_score);
-  //pvector<ScoreT> outgoing_contrib(g.num_nodes());
+  Timer numa_timer;
+  numa_timer.Start();
+
+  pvector<ScoreT> scores(num_nodes, init_score);
+  pvector<ScoreT> outgoing_contrib(num_nodes);
 
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
+    Timer debug_timer;
 
-    //omp_set_nested(1);
-    //#pragma omp parallel for
-    //Perform computation within each segment
-    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-      auto sg = graphSegments->getSegmentedGraph(segmentId);
-      int* segmentVertexArray = sg->vertexArray;
-      int* segmentEdgeArray = sg->edgeArray;
-      int localVertexId;
-
-      nodemask_t mask;
-      struct bitmask *bmaskp = numa_bitmask_alloc(num_numa_node);
-      nodemask_zero(&mask);
-      nodemask_set_compat(&mask, segmentId % num_numa_node);
-      copy_nodemask_to_bitmask(&mask, bmaskp);
-      numa_bind(bmaskp);
-
-#ifdef DEBUG2
-      cout << "in segment: " << segmentId << endl;
-      cout << "num vertices: " << sg->numVertices << " num edges: " << sg->numEdges << endl;
-      cout << "segment vertex array: " << endl;
-      for (int i = 0; i < sg->numVertices + 1; i++){
-	cout << " " << segmentVertexArray[i];
-      }
-      cout << endl;
-      cout << "segment edge array: " << endl;
-      for (int i = 0; i < sg->numEdges; i++){
-	cout << " " << segmentEdgeArray[i];
-      }
-      cout << endl;
-      cout << "running on node mask: " << mask << endl;
+#ifdef DEBUG
+    cout << "stage 1 started" << endl;
+    debug_timer.Start();
 #endif
 
-#pragma omp parallel for
-      for (localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
-	int n = sg->graphId[localVertexId];
-	sg->outgoing_contrib[n] = sg->scores[n] / g.out_degree(n);
-      }
-      
-#pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
-      for (localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
+    /* stage 1: compute outgoing_contrib, global sequential*/
+    #pragma omp parallel for
+    for (NodeID n=0; n < num_nodes; n++)
+      outgoing_contrib[n] = scores[n] / g.out_degree(n);
+
+#ifdef DEBUG
+    debug_timer.Stop();
+    cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;
+#endif
+
+    /* stage 2: pull from neighbor, used to be global random, now local random*/
+    omp_set_nested(1);
+    #pragma omp parallel for
+    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+      int ret= numa_run_on_node(segmentId % num_numa_node);
+
+      auto sg = graphSegments->getSegmentedGraph(segmentId);
+      int* segmentVertexArray = sg->dstVertexArray;
+      int* segmentEdgeArray = sg->edgeArray;
+      #pragma omp parallel for
+      for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
 	int u = sg->graphId[localVertexId];
-	ScoreT incoming_total = 0;
 	int start = segmentVertexArray[localVertexId];
 	int end = segmentVertexArray[localVertexId+1];
 	for (int neighbor = start; neighbor < end; neighbor++) {
 	  int v = segmentEdgeArray[neighbor];
-#ifdef DEBUG2
-	  cout << "edge from v: " << v << " to u: " << u << endl;
-#endif
-	  incoming_total += sg->outgoing_contrib[v];
+	  sg->incoming_total[u] += outgoing_contrib[v];
 	}
-	ScoreT old_score = sg->scores[u];
-	sg->scores[u] = base_score + kDamp * incoming_total;
-	error += fabs(sg->scores[u] - old_score);
       }
     }
+
+    /* stage 3 reduce scores, global sequential */
+   #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
+    for (NodeID n=0; n < num_nodes; n++) {
+      ScoreT old_score = scores[n];
+      ScoreT global_incoming_total = 0;
+      for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+	auto sg = graphSegments->getSegmentedGraph(segmentId);
+	global_incoming_total += sg->incoming_total[n];
+	sg->incoming_total[n] = 0;
+      }
+      scores[n] = base_score + kDamp * global_incoming_total;
+      error += fabs(scores[n] - old_score);
+    }
+
     printf(" %2d    %lf\n", iter, error);
     if (error < epsilon)
       break;
   }
-  
-  // copy scores to the final array
-  for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-    auto sg = graphSegments->getSegmentedGraph(segmentId);
-#pragma omp parallel for
-    for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
-      int n = sg->graphId[localVertexId];
-      scores[n] = sg->scores[n];
-    }
-  }
 
+  numa_timer.Stop();
+  PrintTime("NUMA Time", numa_timer.Seconds());
   return scores;
 }
 

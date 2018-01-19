@@ -47,14 +47,14 @@ void numa_thread_init(void) {
   omp_set_dynamic(0);
   omp_set_num_threads(threads);
 
-#pragma omp parallel num_threads(threads)
+#pragma omp parallel
   {
     int thread_id = omp_get_thread_num();
     int socket_id = thread_id / threads_per_socket;
     assert(numa_run_on_node(socket_id) == 0);
 
 #ifdef DEBUG_MSG
-    cout << "thread=" << thread_id << " socket=" << socket_id << " cpu=" << sched_getcpu() << endl;
+    cout << "binding: omp_get_num_threads=" << omp_get_num_threads() << endl;
 #endif
   }
 }
@@ -89,13 +89,25 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
 
+
+#ifdef TIME_MSG
+    Timer debug_timer;
+    debug_timer.Start();
+#endif
+
     /* stage 1: compute outgoing_contrib, global sequential */
-    #pragma omp parallel for
+#pragma omp parallel for
     for (NodeID n=0; n < g.num_nodes(); n++)
       outgoing_contrib[n] = scores[n] / g.out_degree(n);
 
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
+#endif
+
     /* stage 2: pull from neighbor, used to be global random, now local random */
-#pragma omp parallel num_threads(threads)
+#pragma omp parallel
   {
     int thread_id = omp_get_thread_num();
     int socket_id = thread_id / threads_per_socket;
@@ -116,7 +128,16 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	sg->incoming_total[u] += outgoing_contrib[v];
       }
     }
+#ifdef DEBUG_MSG
+    cout << "stage 2: omp_get_num_threads=" << omp_get_num_threads() << endl;
+#endif
   }
+
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 2 took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
+#endif
 
   /* stage 3 reduce scores, global sequential */
 #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
@@ -131,6 +152,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     scores[n] = base_score + kDamp * global_incoming_total;
     error += fabs(scores[n] - old_score);
   }
+
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 3 took " << debug_timer.Seconds() << " seconds" << endl;
+#endif
 
   printf(" %2d    %lf\n", iter, error);
   if (error < epsilon)

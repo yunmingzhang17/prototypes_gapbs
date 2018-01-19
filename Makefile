@@ -22,6 +22,10 @@ ifeq ($(LOAD_MSG), 1)
 CXX_FLAGS += -DLOAD_MSG
 endif
 
+ifeq ($(TIME_MSG), 1)
+CXX_FLAGS += -DTIME_MSG
+endif
+
 ifdef NUMA
 CXX_FLAGS += -lnuma
 endif

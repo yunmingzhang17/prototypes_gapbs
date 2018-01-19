@@ -44,15 +44,6 @@ void numa_thread_init(void) {
   sockets = numa_num_configured_nodes();
   threads_per_socket = threads / sockets;
   assert(numa_available() != -1);
-
-  // char nodestring[sockets*2+1];
-  // nodestring[0] = '0';
-  // for (int s_i = 1;s_i < sockets; s_i++) {
-  //   nodestring[s_i*2-1] = ',';
-  //   nodestring[s_i*2] = '0'+s_i;
-  // }
-  // struct bitmask *nodemask = numa_parse_nodestring(nodestring);
-
   omp_set_dynamic(0);
   omp_set_num_threads(threads);
 
@@ -81,6 +72,13 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
+
+#ifdef LOAD_MSG
+  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numDstVertices << " vertices" << endl;
+  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numEdges << " edges" << endl;
+  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numDstVertices << " vertices" << endl;
+  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numEdges << " edges" << endl;
+#endif
 
   /* bind threads */
   numa_thread_init();

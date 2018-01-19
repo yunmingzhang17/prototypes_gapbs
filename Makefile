@@ -18,6 +18,10 @@ ifeq ($(DEBUG_MSG), 1)
 CXX_FLAGS += -DDEBUG_MSG
 endif
 
+ifeq ($(LOAD_MSG), 1)
+CXX_FLAGS += -DLOAD_MSG
+endif
+
 ifdef NUMA
 CXX_FLAGS += -lnuma
 endif

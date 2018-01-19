@@ -53,10 +53,9 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
-    Timer debug_timer;
 
-#ifdef DEBUG
-    cout << "stage 1 started" << endl;
+#ifdef TIME_MSG
+    Timer debug_timer;
     debug_timer.Start();
 #endif
 
@@ -65,9 +64,10 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     for (NodeID n=0; n < num_nodes; n++)
       outgoing_contrib[n] = scores[n] / g.out_degree(n);
 
-#ifdef DEBUG
+#ifdef TIME_MSG
     debug_timer.Stop();
     cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
 #endif
 
     /* stage 2: pull from neighbor, used to be global random, now local random*/
@@ -94,9 +94,14 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	}
       }
     }
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 2 took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
+#endif
 
     /* stage 3 reduce scores, global sequential */
-   #pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
+#pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
     for (NodeID n=0; n < num_nodes; n++) {
       ScoreT old_score = scores[n];
       ScoreT global_incoming_total = 0;
@@ -108,6 +113,10 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
       scores[n] = base_score + kDamp * global_incoming_total;
       error += fabs(scores[n] - old_score);
     }
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 3 took " << debug_timer.Seconds() << " seconds" << endl;
+#endif
 
     printf(" %2d    %lf\n", iter, error);
     if (error < epsilon)

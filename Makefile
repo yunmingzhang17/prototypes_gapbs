@@ -14,6 +14,10 @@ PAR_FLAG = -fopenmp
 
 endif
 
+ifdef TIME_MSG
+CXX_FLAGS += -DTIME_MSG
+endif
+
 ifdef NUMA
 CXX_FLAGS += -lnuma
 endif

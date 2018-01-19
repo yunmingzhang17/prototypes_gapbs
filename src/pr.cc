@@ -40,7 +40,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   const ScoreT base_score = (1.0f - kDamp) / num_nodes;
 
   //Build the segmented graph from g
-  int numSegments = 1;//num_numa_node;
+  int numSegments = num_numa_node;
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
@@ -71,22 +71,29 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #endif
 
     /* stage 2: pull from neighbor, used to be global random, now local random*/
+    cout << "omp_get_num_places=" << omp_get_num_places() << endl;
     omp_set_nested(1);
-    #pragma omp parallel for
-    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-      int ret= numa_run_on_node(segmentId % num_numa_node);
-
-      auto sg = graphSegments->getSegmentedGraph(segmentId);
+#pragma omp parallel num_threads(numSegments) proc_bind(spread)
+    {
+      int socket_num = omp_get_place_num();
+      int n_procs = omp_get_place_num_procs(socket_num);
+      cout << "socket_num=" << socket_num << endl;
+      cout << "n_procs=" << n_procs << endl;
+      auto sg = graphSegments->getSegmentedGraph(socket_num);
       int* segmentVertexArray = sg->dstVertexArray;
       int* segmentEdgeArray = sg->edgeArray;
-      #pragma omp parallel for
-      for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
-	int u = sg->graphId[localVertexId];
-	int start = segmentVertexArray[localVertexId];
-	int end = segmentVertexArray[localVertexId+1];
-	for (int neighbor = start; neighbor < end; neighbor++) {
-	  int v = segmentEdgeArray[neighbor];
-	  sg->incoming_total[u] += outgoing_contrib[v];
+
+#pragma omp parallel num_threads(n_procs) proc_bind(close)
+      {
+#pragma omp for schedule(dynamic, 64)
+	for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
+	  int u = sg->graphId[localVertexId];
+	  int start = segmentVertexArray[localVertexId];
+	  int end = segmentVertexArray[localVertexId+1];
+	  for (int neighbor = start; neighbor < end; neighbor++) {
+	    int v = segmentEdgeArray[neighbor];
+	    sg->incoming_total[u] += outgoing_contrib[v];
+	  }
 	}
       }
     }

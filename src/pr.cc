@@ -71,14 +71,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #endif
 
     /* stage 2: pull from neighbor, used to be global random, now local random*/
-    cout << "omp_get_num_places=" << omp_get_num_places() << endl;
     omp_set_nested(1);
 #pragma omp parallel num_threads(numSegments) proc_bind(spread)
     {
       int socket_num = omp_get_place_num();
       int n_procs = omp_get_place_num_procs(socket_num);
-      cout << "socket_num=" << socket_num << endl;
-      cout << "n_procs=" << n_procs << endl;
       auto sg = graphSegments->getSegmentedGraph(socket_num);
       int* segmentVertexArray = sg->dstVertexArray;
       int* segmentEdgeArray = sg->edgeArray;

@@ -101,7 +101,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #endif
 
     /* stage 3 reduce scores, global sequential */
-#pragma omp parallel for reduction(+ : error) schedule(dynamic, 64)
+#pragma omp parallel for reduction(+ : error)
     for (NodeID n=0; n < num_nodes; n++) {
       ScoreT old_score = scores[n];
       ScoreT global_incoming_total = 0;

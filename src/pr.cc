@@ -45,6 +45,13 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
 
+#ifdef LOAD_MSG
+  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numDstVertices << " vertices" << endl;
+  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numEdges << " edges" << endl;
+  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numDstVertices << " vertices" << endl;
+  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numEdges << " edges" << endl;
+#endif
+
   Timer numa_timer;
   numa_timer.Start();
 

@@ -14,8 +14,12 @@ PAR_FLAG = -fopenmp
 
 endif
 
-ifdef TIME_MSG
+ifeq ($(TIME_MSG), 1)
 CXX_FLAGS += -DTIME_MSG
+endif
+
+ifeq ($(LOAD_MSG), 1)
+CXX_FLAGS += -DLOAD_MSG
 endif
 
 ifdef NUMA

@@ -42,7 +42,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   //Build the segmented graph from g
   int numSegments = num_numa_node;
   int segmentRange = (num_nodes + numSegments) / numSegments;
-  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, segmentRange, num_nodes);
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
 
 #ifdef LOAD_MSG

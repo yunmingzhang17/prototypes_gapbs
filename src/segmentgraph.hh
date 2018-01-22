@@ -19,7 +19,6 @@ struct SegmentedGraph
   int *dstVertexArray;
   int numDstVertices;
   int numEdges;
-  int segmentRange;
   int numVertices;
   bool allocated;
 
@@ -29,7 +28,7 @@ private:
   Vertex lastEdgeIndex;
 
 public:
-  SegmentedGraph(int _segmentRange, int _numVertices) : segmentRange(_segmentRange), numVertices(_numVertices)
+  SegmentedGraph(int _numVertices) : numVertices(_numVertices)
   {
     allocated = false;
     numDstVertices = 0;
@@ -130,11 +129,11 @@ struct GraphSegments
   int numSegments;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
-  GraphSegments(int _numSegments, int segmentRange, int numVertices): numSegments(_numSegments)
+  GraphSegments(int _numSegments, int numVertices): numSegments(_numSegments)
   {
     //alocate each graph segment
     for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph<int, int>(segmentRange, numVertices));
+      segments.push_back(new SegmentedGraph<int, int>(numVertices));
     }
   }
 

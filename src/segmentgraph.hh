@@ -8,8 +8,6 @@
 
 using namespace std;
 
-static int num_numa_node = numa_num_configured_nodes();
-
 template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
@@ -49,9 +47,9 @@ public:
   }
 
 
-  void allocate(int segment_id)
+  void allocate(int segment_id, int numSegments)
   {
-    int node = segment_id % num_numa_node;
+    int node = segment_id % numSegments;
 
     incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
     #pragma omp parallel for
@@ -141,7 +139,7 @@ struct GraphSegments
 
   void allocate() {
     for (int i = 0; i<numSegments; i++){
-      segments[i]->allocate(i);
+      segments[i]->allocate(i, numSegments);
     }
   }
 

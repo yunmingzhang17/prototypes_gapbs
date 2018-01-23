@@ -40,7 +40,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   const ScoreT base_score = (1.0f - kDamp) / num_nodes;
 
   //Build the segmented graph from g
-  int numSegments = num_numa_node;
+  int numSegments = omp_get_num_places();
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);

@@ -5,7 +5,6 @@
 #include <iostream>
 #include <vector>
 #include <numa.h>
-#include <omp.h>
 
 #include "benchmark.h"
 #include "builder.h"
@@ -40,7 +39,8 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   const ScoreT base_score = (1.0f - kDamp) / num_nodes;
 
   //Build the segmented graph from g
-  int numSegments = omp_get_num_places();
+  int num_places = omp_get_num_places();
+  int numSegments = num_places;
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
   BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
@@ -65,7 +65,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     debug_timer.Start();
 #endif
 
-    /* stage 1: compute outgoing_contrib, global sequential*/
+    /* stage 1: compute outgoing_contrib, global sequential */
 #pragma omp parallel for
     for (NodeID n=0; n < num_nodes; n++) {
       for (int segmentId = 0; segmentId < numSegments; segmentId++) {
@@ -79,26 +79,30 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     debug_timer.Start();
 #endif
 
-    /* stage 2: pull from neighbor, used to be global random, now local random*/
+    /* stage 2: pull from neighbor, used to be global random, now local random */
     omp_set_nested(1);
-#pragma omp parallel num_threads(numSegments) proc_bind(spread)
+    int segments_per_socket = numSegments / num_places;
+#pragma omp parallel num_threads(num_places) proc_bind(spread)
     {
-      int socket_num = omp_get_place_num();
-      int n_procs = omp_get_place_num_procs(socket_num);
-      auto sg = graphSegments->getSegmentedGraph(socket_num);
-      int* segmentVertexArray = sg->dstVertexArray;
-      int* segmentEdgeArray = sg->edgeArray;
+      int socket_id = omp_get_place_num();
+      int n_procs = omp_get_place_num_procs(socket_id);
+      for (int i = 0; i < segments_per_socket; i++) {
+	int segment_id = socket_id + i * num_places;
+	auto sg = graphSegments->getSegmentedGraph(segment_id);
+	int* segmentVertexArray = sg->dstVertexArray;
+	int* segmentEdgeArray = sg->edgeArray;
 
 #pragma omp parallel num_threads(n_procs) proc_bind(close)
-      {
+	{
 #pragma omp for schedule(dynamic, 64)
-	for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
-	  int u = sg->graphId[localVertexId];
-	  int start = segmentVertexArray[localVertexId];
-	  int end = segmentVertexArray[localVertexId+1];
-	  for (int neighbor = start; neighbor < end; neighbor++) {
-	    int v = segmentEdgeArray[neighbor];
-	    sg->incoming_total[u] += sg->outgoing_contrib[v];
+	  for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
+	    int u = sg->graphId[localVertexId];
+	    int start = segmentVertexArray[localVertexId];
+	    int end = segmentVertexArray[localVertexId+1];
+	    for (int neighbor = start; neighbor < end; neighbor++) {
+	      int v = segmentEdgeArray[neighbor];
+	      sg->incoming_total[u] += sg->outgoing_contrib[v];
+	    }
 	  }
 	}
       }

@@ -2,6 +2,7 @@
 #include <vector>
 #include <assert.h>
 #include <numa.h>
+#include <omp.h>
 
 #include "graph.h"
 #include "pvector.h"
@@ -47,9 +48,9 @@ public:
   }
 
 
-  void allocate(int segment_id, int numSegments)
+  void allocate(int segment_id)
   {
-    int node = segment_id % numSegments;
+    int node = segment_id % omp_get_num_places();;
 
     incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
     #pragma omp parallel for
@@ -139,7 +140,7 @@ struct GraphSegments
 
   void allocate() {
     for (int i = 0; i<numSegments; i++){
-      segments[i]->allocate(i, numSegments);
+      segments[i]->allocate(i);
     }
   }
 

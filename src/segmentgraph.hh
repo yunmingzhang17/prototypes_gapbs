@@ -14,6 +14,7 @@ template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
   float *incoming_total;
+  float *outgoing_contrib;
   int *graphId;
   int *edgeArray;
   int *dstVertexArray;
@@ -41,13 +42,10 @@ public:
   ~SegmentedGraph()
   {
     numa_free(incoming_total, sizeof(float) * numVertices);
+    numa_free(outgoing_contrib, sizeof(float) * numVertices);
     numa_free(graphId, sizeof(int) * numDstVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
     numa_free(dstVertexArray, sizeof(int) * numDstVertices);
-    //delete[] graphId;
-    //delete[] edgeArray;
-    //delete[] dstVertexArray;
-    //delete[] incoming_total;
   }
 
 
@@ -56,19 +54,16 @@ public:
     int node = segment_id % num_numa_node;
 
     incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
-    //incoming_total = new float[numVertices];
-
     #pragma omp parallel for
     for (int i = 0; i < numVertices; i++)
       incoming_total[i] = 0;
 
+    outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
+
     dstVertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numDstVertices + 1), node); // start,end of last
-    //dstVertexArray = new int[numDstVertices + 1];
     dstVertexArray[numDstVertices] = numEdges;
     edgeArray = (int *)numa_alloc_onnode(sizeof(int) * numEdges, node);
-    //edgeArray = new int[numEdges];
     graphId = (int *)numa_alloc_onnode(sizeof(int) * numDstVertices, node);
-    //graphId = new int[numVertices];
     allocated = true;
   }
 

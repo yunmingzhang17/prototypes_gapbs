@@ -56,7 +56,6 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   numa_timer.Start();
 
   pvector<ScoreT> scores(num_nodes, init_score);
-  pvector<ScoreT> outgoing_contrib(num_nodes);
 
   for (int iter=0; iter < max_iters; iter++) {
     double error = 0;
@@ -67,10 +66,13 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #endif
 
     /* stage 1: compute outgoing_contrib, global sequential*/
-    #pragma omp parallel for
-    for (NodeID n=0; n < num_nodes; n++)
-      outgoing_contrib[n] = scores[n] / g.out_degree(n);
-
+#pragma omp parallel for
+    for (NodeID n=0; n < num_nodes; n++) {
+      for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+	auto sg = graphSegments->getSegmentedGraph(segmentId);
+	sg->outgoing_contrib[n] = scores[n] / g.out_degree(n);
+      }
+    }
 #ifdef TIME_MSG
     debug_timer.Stop();
     cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;
@@ -96,7 +98,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	  int end = segmentVertexArray[localVertexId+1];
 	  for (int neighbor = start; neighbor < end; neighbor++) {
 	    int v = segmentEdgeArray[neighbor];
-	    sg->incoming_total[u] += outgoing_contrib[v];
+	    sg->incoming_total[u] += sg->outgoing_contrib[v];
 	  }
 	}
       }
@@ -120,6 +122,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
       scores[n] = base_score + kDamp * global_incoming_total;
       error += fabs(scores[n] - old_score);
     }
+
 #ifdef TIME_MSG
     debug_timer.Stop();
     cout << "stage 3 took " << debug_timer.Seconds() << " seconds" << endl;

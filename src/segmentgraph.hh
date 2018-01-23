@@ -16,10 +16,10 @@ struct SegmentedGraph
   float *outgoing_contrib;
   int *graphId;
   int *edgeArray;
-  int *dstVertexArray;
-  int numDstVertices;
-  int numEdges;
+  int *vertexArray;
   int numVertices;
+  int numEdges;
+  int numNodes;
   bool allocated;
 
 private:
@@ -28,10 +28,10 @@ private:
   Vertex lastEdgeIndex;
 
 public:
-  SegmentedGraph(int _numVertices) : numVertices(_numVertices)
+  SegmentedGraph(int _numNodes) : numNodes(_numNodes)
   {
     allocated = false;
-    numDstVertices = 0;
+    numVertices = 0;
     numEdges = 0;
     lastVertex = -1;
     lastEdgeIndex = 0;
@@ -40,11 +40,11 @@ public:
 
   ~SegmentedGraph()
   {
-    numa_free(incoming_total, sizeof(float) * numVertices);
-    numa_free(outgoing_contrib, sizeof(float) * numVertices);
-    numa_free(graphId, sizeof(int) * numDstVertices);
+    numa_free(incoming_total, sizeof(float) * numNodes);
+    numa_free(outgoing_contrib, sizeof(float) * numNodes);
+    numa_free(graphId, sizeof(int) * numVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
-    numa_free(dstVertexArray, sizeof(int) * numDstVertices);
+    numa_free(vertexArray, sizeof(int) * numVertices);
   }
 
 
@@ -52,54 +52,59 @@ public:
   {
     int node = segment_id % omp_get_num_places();;
 
-    incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
+    incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
     #pragma omp parallel for
-    for (int i = 0; i < numVertices; i++)
+    for (int i = 0; i < numNodes; i++)
       incoming_total[i] = 0;
 
-    outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
+    outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
 
-    dstVertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numDstVertices + 1), node); // start,end of last
-    dstVertexArray[numDstVertices] = numEdges;
+    vertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numVertices + 1), node); // start,end of last
+    vertexArray[numVertices] = numEdges;
     edgeArray = (int *)numa_alloc_onnode(sizeof(int) * numEdges, node);
-    graphId = (int *)numa_alloc_onnode(sizeof(int) * numDstVertices, node);
+    graphId = (int *)numa_alloc_onnode(sizeof(int) * numVertices, node);
     allocated = true;
   }
 
-  //countIncomingEdge counts how many edges we need and create a mapping to global id
+  /**
+   * Count how many edges we need.
+   * @v: dst vertex in pull direction and src vertex in push direction
+   **/
   inline
-  void countIncomingEdge(Vertex src, Vertex dst)
+  void countEdge(Vertex v)
   {
-    bool newVertex = false;
-    if (dst != lastVertex) {
-      numDstVertices++;
-      lastVertex = dst;
-      newVertex = true;
+    if (v != lastVertex) {
+      numVertices++;
+      lastVertex = v;
     }
     numEdges++;
   }
 
-  //addIncomingEdge adds new edge to each subgraph, pulling from src to dst
+  /**
+   * Add new edge to each subgraph
+   * @v: src in pull direction, dst in push direction
+   * @e: dst in pull direction, src in push direction
+   **/
   inline
-  void addIncomingEdge(Vertex src, Vertex dst)
+  void addEdge(Vertex toVertexArray, Vertex toEdgeArray)
   {
-    if (dst != lastVertex) {
+    if (toVertexArray != lastVertex) {
       // a new vertex going to the same partition                                   
       // must be sorted                                                             
-      //assert(dst > lastVertex);
-      lastVertex = dst;
-      graphId[lastLocalIndex] = dst;
-      dstVertexArray[lastLocalIndex++] = lastEdgeIndex;
+      //assert(e > lastVertex);
+      lastVertex = toVertexArray;
+      graphId[lastLocalIndex] = toVertexArray;
+      vertexArray[lastLocalIndex++] = lastEdgeIndex;
     }                                                                               
-    edgeArray[lastEdgeIndex++] = src;
+    edgeArray[lastEdgeIndex++] = toEdgeArray;
   }
 
   void print(){
     assert(allocated == true);
-    cout << "Segmented Graph numDstVertices: " << numDstVertices << " numEdges: " << numEdges  << endl;
-    cout << "DstVertex Array: " << endl;
-    for (int i = 0; i < numDstVertices; i++){
-      cout << " " << dstVertexArray[i];
+    cout << "Segmented Graph numVertices: " << numVertices << " numEdges: " << numEdges  << endl;
+    cout << "Vertex Array: " << endl;
+    for (int i = 0; i < numVertices; i++){
+      cout << " " << vertexArray[i];
     }
     cout << endl;
 
@@ -110,7 +115,7 @@ public:
     cout << endl;
 
     cout << "GraphId Array: " << endl;
-    for (int i = 0; i < numDstVertices; i++){
+    for (int i = 0; i < numVertices; i++){
       cout << " " << graphId[i];
     }
     cout << endl;
@@ -123,11 +128,11 @@ struct GraphSegments
   int numSegments;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
-  GraphSegments(int _numSegments, int numVertices): numSegments(_numSegments)
+  GraphSegments(int _numSegments, int numNodes): numSegments(_numSegments)
   {
     //alocate each graph segment
     for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph<int, int>(numVertices));
+      segments.push_back(new SegmentedGraph<int, int>(numNodes));
     }
   }
 
@@ -149,17 +154,14 @@ struct GraphSegments
   }
 };
 
-/**
- * Build Graph Segments with input Graph, output graphSegments and specified number of segments. This has to work with GAPBS graphs now
- */
 template <class DataT, class Vertex>
-void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
+void BuildPullSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
 {
   //Go through the original graph and count the number of target vertices and edges for each segment
   for (NodeID v : originalGraph->vertices()){
     for (NodeID u : originalGraph->in_neigh(v)){
       int segment_id = u/segmentRange;
-      graphSegments->getSegmentedGraph(segment_id)->countIncomingEdge(u, v);
+      graphSegments->getSegmentedGraph(segment_id)->countEdge(v);
     }
   }
 
@@ -170,7 +172,31 @@ void BuildCacheSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,V
   for (NodeID v : originalGraph->vertices()){
     for (NodeID u : originalGraph->in_neigh(v)){
       int segment_id = u/segmentRange;
-      graphSegments->getSegmentedGraph(segment_id)->addIncomingEdge(u, v);
+      graphSegments->getSegmentedGraph(segment_id)->addEdge(v, u);
     }
   }
 }
+
+template <class DataT, class Vertex>
+void BuildPushSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
+{
+  //Go through the original graph and count the number of target vertices and edges for each segment
+  for (NodeID u : originalGraph->vertices()){
+    for (NodeID v : originalGraph->out_neigh(u)){
+      int segment_id = v/segmentRange;
+      graphSegments->getSegmentedGraph(segment_id)->countEdge(u);
+    }
+  }
+
+  //Allocate each segment
+  graphSegments->allocate();
+
+  //Add the edges for each segment
+  for (NodeID u : originalGraph->vertices()){
+    for (NodeID v : originalGraph->out_neigh(u)){
+      int segment_id = v/segmentRange;
+      graphSegments->getSegmentedGraph(segment_id)->addEdge(u, v);
+    }
+  }
+}
+

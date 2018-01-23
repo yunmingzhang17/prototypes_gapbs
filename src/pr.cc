@@ -43,12 +43,12 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   int numSegments = num_places;
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
-  BuildCacheSegmentedGraphs(&g, graphSegments, segmentRange);
+  BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
 
 #ifdef LOAD_MSG
-  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numDstVertices << " vertices" << endl;
+  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numVertices << " vertices" << endl;
   cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numEdges << " edges" << endl;
-  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numDstVertices << " vertices" << endl;
+  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numVertices << " vertices" << endl;
   cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numEdges << " edges" << endl;
 #endif
 
@@ -89,13 +89,13 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
       for (int i = 0; i < segments_per_socket; i++) {
 	int segment_id = socket_id + i * num_places;
 	auto sg = graphSegments->getSegmentedGraph(segment_id);
-	int* segmentVertexArray = sg->dstVertexArray;
+	int* segmentVertexArray = sg->vertexArray;
 	int* segmentEdgeArray = sg->edgeArray;
 
 #pragma omp parallel num_threads(n_procs) proc_bind(close)
 	{
 #pragma omp for schedule(dynamic, 64)
-	  for (int localVertexId = 0; localVertexId < sg->numDstVertices; localVertexId++) {
+	  for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
 	    int u = sg->graphId[localVertexId];
 	    int start = segmentVertexArray[localVertexId];
 	    int end = segmentVertexArray[localVertexId+1];

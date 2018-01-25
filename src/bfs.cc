@@ -13,6 +13,7 @@
 #include "pvector.h"
 #include "sliding_queue.h"
 #include "timer.h"
+#include "segmentgraph_bfs.hh"
 
 
 /*
@@ -43,26 +44,74 @@ them in parent array as negative numbers. Thus the encoding of parent is:
 
 using namespace std;
 
-int64_t BUStep(const Graph &g, pvector<NodeID> &parent, Bitmap &front,
+static int num_nodes;
+static int num_places;
+
+int64_t BUStep(GraphSegments<int,int>* gs, pvector<NodeID> &parent, Bitmap &front,
                Bitmap &next) {
   int64_t awake_count = 0;
   next.reset();
-  #pragma omp parallel for reduction(+ : awake_count) schedule(dynamic, 1024)
-  for (NodeID u=0; u < g.num_nodes(); u++) {
-    if (parent[u] < 0) {
-      for (NodeID v : g.in_neigh(u)) {
-        if (front.get_bit(v)) {
-          parent[u] = v;
-          awake_count++;
-          next.set_bit(u);
-          break;
-        }
-      }
+
+#ifdef TIME_MSG
+  Timer debug_timer;
+  debug_timer.Start();
+#endif
+  /* pull step */
+  int segments_per_socket = gs->numSegments / num_places;
+#pragma omp parallel num_threads(num_places) proc_bind(spread)
+    {
+      int socket_id = omp_get_place_num();
+      int n_procs = omp_get_place_num_procs(socket_id);
+      for (int i = 0; i < segments_per_socket; i++) {
+	int segment_id = socket_id + i * num_places;
+	auto sg = gs->getSegmentedGraph(segment_id);
+	int* segmentVertexArray = sg->vertexArray;
+	int* segmentEdgeArray = sg->edgeArray;
+#pragma omp parallel num_threads(n_procs) proc_bind(close)
+	{
+#pragma omp for schedule(dynamic, 1024)
+	  for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
+	    int u = sg->graphId[localVertexId];
+	    if (sg->parent[u] < 0) {
+	      int start = segmentVertexArray[localVertexId];
+	      int end = segmentVertexArray[localVertexId+1];
+	      for (int neighbor = start; neighbor < end; neighbor++) {
+		int v = segmentEdgeArray[neighbor];
+		if (front.get_bit(v)) {
+		  sg->parent[u] = v;
+		  break;
+		}
+	      }
+	    }
+	  }
+	}
+      }      
     }
-  }
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "pull step took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
+#endif
+
+    /* merge step */
+#pragma omp parallel for reduction(+: awake_count)
+    for (NodeID n=0; n < num_nodes; n++) {
+      for (int segment_id = 0; segment_id < gs->numSegments; segment_id++) {
+	auto sg = gs->getSegmentedGraph(segment_id);
+	if (sg->parent[n] >= 0 && parent[n] < 0) {
+	  parent[n] = sg->parent[n];
+	  awake_count++;
+	  next.set_bit(n);
+	}
+      }
+    }  
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "merge step took " << debug_timer.Seconds() << " seconds" << endl;
+#endif
+
   return awake_count;
 }
-
 
 int64_t TDStep(const Graph &g, pvector<NodeID> &parent,
                SlidingQueue<NodeID> &queue) {
@@ -119,12 +168,38 @@ pvector<NodeID> InitParent(const Graph &g) {
   return parent;
 }
 
+void InitSegmentParent(const Graph &g, GraphSegments<int,int>* graph_segments, NodeID source) {
+  #pragma omp parallel for
+  for (NodeID n=0; n < g.num_nodes(); n++) {
+    for (int segment_id = 0; segment_id < graph_segments->numSegments; segment_id++) {
+      auto sg = graph_segments->getSegmentedGraph(segment_id);
+      sg->parent[n] = g.out_degree(n) != 0 ? -g.out_degree(n) : -1;
+    }
+  }
+
+  for (int segment_id = 0; segment_id < graph_segments->numSegments; segment_id++) {
+    auto sg = graph_segments->getSegmentedGraph(segment_id);
+    sg->parent[source] = source;
+  }
+}
+ 
 pvector<NodeID> DOBFS(const Graph &g, NodeID source, int alpha = 15,
                       int beta = 18) {
+  num_nodes = g.num_nodes();
+  num_places = omp_get_num_places();
+  int num_segments = num_places;
+  int segment_range = (num_nodes + num_segments) / num_segments;
+  GraphSegments<int,int>* pull_graph_segments = new GraphSegments<int,int>(num_segments, num_nodes);
+  BuildPullSegmentedGraphs(&g, pull_graph_segments, segment_range);
+  GraphSegments<int,int>* push_graph_segments = new GraphSegments<int,int>(num_segments, num_nodes);
+  BuildPullSegmentedGraphs(&g, push_graph_segments, segment_range);
+
   PrintStep("Source", static_cast<int64_t>(source));
   Timer t;
   t.Start();
   pvector<NodeID> parent = InitParent(g);
+  InitSegmentParent(g, pull_graph_segments, source);
+  InitSegmentParent(g, push_graph_segments, source);
   t.Stop();
   PrintStep("i", t.Seconds());
   parent[source] = source;
@@ -137,6 +212,8 @@ pvector<NodeID> DOBFS(const Graph &g, NodeID source, int alpha = 15,
   front.reset();
   int64_t edges_to_check = g.num_edges_directed();
   int64_t scout_count = g.out_degree(source);
+
+  omp_set_nested(1);
   while (!queue.empty()) {
     if (scout_count > edges_to_check / alpha) {
       int64_t awake_count, old_awake_count;
@@ -147,7 +224,7 @@ pvector<NodeID> DOBFS(const Graph &g, NodeID source, int alpha = 15,
       do {
         t.Start();
         old_awake_count = awake_count;
-        awake_count = BUStep(g, parent, front, curr);
+        awake_count = BUStep(pull_graph_segments, parent, front, curr);
         front.swap(curr);
         t.Stop();
         PrintStep("bu", t.Seconds(), awake_count);
@@ -253,6 +330,7 @@ int main(int argc, char* argv[]) {
   auto VerifierBound = [&vsp] (const Graph &g, const pvector<NodeID> &parent) {
     return BFSVerifier(g, vsp.PickNext(), parent);
   };
+
   BenchmarkKernel(cli, g, BFSBound, PrintBFSStats, VerifierBound);
   return 0;
 }

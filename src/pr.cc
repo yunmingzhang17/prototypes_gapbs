@@ -40,7 +40,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 
   //Build the segmented graph from g
   int num_places = omp_get_num_places();
-  int numSegments = num_places;
+  int numSegments = num_places * 5;
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
   BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
@@ -64,12 +64,12 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     Timer debug_timer;
     debug_timer.Start();
 #endif
-
     /* stage 1: compute outgoing_contrib, global sequential */
+    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+      auto sg = graphSegments->getSegmentedGraph(segmentId);
 #pragma omp parallel for
-    for (NodeID n=0; n < num_nodes; n++) {
-      for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-	auto sg = graphSegments->getSegmentedGraph(segmentId);
+      for (int i = 0; i < segmentRange; i++) {
+	int n = segmentId * segmentRange + i;
 	sg->outgoing_contrib[n] = scores[n] / g.out_degree(n);
       }
     }

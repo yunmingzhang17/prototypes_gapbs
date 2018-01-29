@@ -84,11 +84,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     int segments_per_socket = numSegments / num_places;
 #pragma omp parallel num_threads(num_places) proc_bind(spread)
     {
-      int socket_id = omp_get_place_num();
-      int n_procs = omp_get_place_num_procs(socket_id);
+      int socketId = omp_get_place_num();
+      int n_procs = omp_get_place_num_procs(socketId);
       for (int i = 0; i < segments_per_socket; i++) {
-	int segment_id = socket_id + i * num_places;
-	auto sg = graphSegments->getSegmentedGraph(segment_id);
+	int segmentId = socketId + i * num_places;
+	auto sg = graphSegments->getSegmentedGraph(segmentId);
 	int* segmentVertexArray = sg->vertexArray;
 	int* segmentEdgeArray = sg->edgeArray;
 
@@ -101,7 +101,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	    int end = segmentVertexArray[localVertexId+1];
 	    for (int neighbor = start; neighbor < end; neighbor++) {
 	      int v = segmentEdgeArray[neighbor];
-	      sg->incoming_total[u] += sg->outgoing_contrib[v];
+	      sg->incoming_total[localVertexId] += sg->outgoing_contrib[v];
 	    }
 	  }
 	}
@@ -113,23 +113,35 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     debug_timer.Start();
 #endif
 
-    /* stage 3 reduce scores, global sequential */
-#pragma omp parallel for reduction(+ : error)
-    for (NodeID n=0; n < num_nodes; n++) {
-      ScoreT old_score = scores[n];
-      ScoreT global_incoming_total = 0;
+    /* stage 3: merge */
+    pvector<ScoreT> scores_next(num_nodes, base_score);
+#pragma omp parallel for
+    for (int cacheId = 0; cacheId < (num_nodes + cacheRange) / cacheRange; cacheId++) {
       for (int segmentId = 0; segmentId < numSegments; segmentId++) {
 	auto sg = graphSegments->getSegmentedGraph(segmentId);
-	global_incoming_total += sg->incoming_total[n];
-	sg->incoming_total[n] = 0;
+	int start = sg->startIdx[cacheId];
+	int end = sg->endIdx[cacheId];
+	for (int localVertexId = start; localVertexId < end; localVertexId++) {
+	  int u = sg->graphId[localVertexId];
+	  scores_next[u] += kDamp * sg->incoming_total[localVertexId];
+	  sg->incoming_total[localVertexId] = 0;
+	}
       }
-      scores[n] = base_score + kDamp * global_incoming_total;
-      error += fabs(scores[n] - old_score);
     }
-
 #ifdef TIME_MSG
     debug_timer.Stop();
-    cout << "stage 3 took " << debug_timer.Seconds() << " seconds" << endl;
+    cout << "stage 3.1 took " << debug_timer.Seconds() << " seconds" << endl;
+    debug_timer.Start();
+#endif
+
+#pragma omp parallel for reduction(+ : error)
+    for (NodeID n=0; n < num_nodes; n++) {
+      error += fabs(scores[n] - scores_next[n]);
+      scores[n] = scores_next[n];
+    }
+#ifdef TIME_MSG
+    debug_timer.Stop();
+    cout << "stage 3.2 took " << debug_timer.Seconds() << " seconds" << endl;
 #endif
 
     printf(" %2d    %lf\n", iter, error);

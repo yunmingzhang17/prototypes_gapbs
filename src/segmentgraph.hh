@@ -9,11 +9,16 @@
 
 using namespace std;
 
+static const int cacheRange = 75000; // L1 cache size / 8 byte per element
+
 template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
   float *incoming_total;
   float *outgoing_contrib;
+  int *startIdx;
+  int *endIdx;
+  int cacheIdx;
   int *graphId;
   int *edgeArray;
   int *vertexArray;
@@ -36,11 +41,12 @@ public:
     lastVertex = -1;
     lastEdgeIndex = 0;
     lastLocalIndex = 0;
+    cacheIdx = -1;
   }
 
   ~SegmentedGraph()
   {
-    numa_free(incoming_total, sizeof(float) * numNodes);
+    numa_free(incoming_total, sizeof(float) * numVertices);
     numa_free(outgoing_contrib, sizeof(float) * numNodes);
     numa_free(graphId, sizeof(int) * numVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
@@ -52,12 +58,20 @@ public:
   {
     int node = segment_id % omp_get_num_places();;
 
-    incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
+    incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numVertices, node);
     #pragma omp parallel for
-    for (int i = 0; i < numNodes; i++)
+    for (int i = 0; i < numVertices; i++)
       incoming_total[i] = 0;
-
     outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
+
+    int numCacheRanges = (numVertices + cacheRange) / cacheRange;
+    startIdx = (int *)numa_alloc_onnode(sizeof(int) * numCacheRanges, node);
+    endIdx = (int *)numa_alloc_onnode(sizeof(int) * numCacheRanges, node);
+    #pragma omp parallel for
+    for (int i = 0; i < numCacheRanges; i++) {
+      startIdx[i] = 0;
+      endIdx[i] = 0;
+    }
 
     vertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numVertices + 1), node); // start,end of last
     vertexArray[numVertices] = numEdges;
@@ -94,7 +108,22 @@ public:
       //assert(e > lastVertex);
       lastVertex = toVertexArray;
       graphId[lastLocalIndex] = toVertexArray;
+
+      // startIdx and endIdx are the start and end index of the vertexArray
+      // whose graphId is in [cacheIdx * cacheRange, (cacheIdx + 1) * cacheRange)
+      if (toVertexArray >= (cacheIdx + 1) * cacheRange) {
+	if (cacheIdx >= 0) {
+	  //cout << "cacheIdx=" << cacheIdx << endl;
+	  endIdx[cacheIdx] = lastLocalIndex;
+	}
+	cacheIdx = toVertexArray / cacheRange;
+	startIdx[cacheIdx] = lastLocalIndex;
+      }
       vertexArray[lastLocalIndex++] = lastEdgeIndex;
+
+      // fill in the last endIdx
+      if (lastLocalIndex == numVertices)
+	endIdx[cacheIdx] = numVertices;
     }                                                                               
     edgeArray[lastEdgeIndex++] = toEdgeArray;
   }
@@ -118,6 +147,20 @@ public:
     for (int i = 0; i < numVertices; i++){
       cout << " " << graphId[i];
     }
+    cout << endl;
+
+    cout << "startIdx Array: " << endl;
+    int numCacheRange = (numVertices + cacheRange) / cacheRange;
+    for (int i = 0; i < numCacheRange; i++){
+      cout << " " << startIdx[i];
+    }
+    cout << endl;
+
+    cout << "endIdx Array: " << endl;
+    for (int i = 0; i < numCacheRange; i++){
+      cout << " " << endIdx[i];
+    }
+    cout << endl;
     cout << endl;
   }
 };

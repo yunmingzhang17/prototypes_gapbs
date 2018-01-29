@@ -45,6 +45,16 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
   BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
 
+  // Build per socket local buffer
+  float *incoming_total[num_places];
+  for (int socketId = 0; socketId < num_places; socketId++) {
+    incoming_total[socketId] = (float *)numa_alloc_onnode(sizeof(float) * g.num_nodes(), socketId);
+#pragma omp parallel for
+    for (int n = 0; n < num_nodes; n++) {
+      incoming_total[socketId][n] = 0;
+    }
+  }
+
 #ifdef LOAD_MSG
   cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numVertices << " vertices" << endl;
   cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numEdges << " edges" << endl;
@@ -84,11 +94,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     int segments_per_socket = numSegments / num_places;
 #pragma omp parallel num_threads(num_places) proc_bind(spread)
     {
-      int socket_id = omp_get_place_num();
-      int n_procs = omp_get_place_num_procs(socket_id);
+      int socketId = omp_get_place_num();
+      int n_procs = omp_get_place_num_procs(socketId);
       for (int i = 0; i < segments_per_socket; i++) {
-	int segment_id = socket_id + i * num_places;
-	auto sg = graphSegments->getSegmentedGraph(segment_id);
+	int segmentId = socketId + i * num_places;
+	auto sg = graphSegments->getSegmentedGraph(segmentId);
 	int* segmentVertexArray = sg->vertexArray;
 	int* segmentEdgeArray = sg->edgeArray;
 
@@ -101,7 +111,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	    int end = segmentVertexArray[localVertexId+1];
 	    for (int neighbor = start; neighbor < end; neighbor++) {
 	      int v = segmentEdgeArray[neighbor];
-	      sg->incoming_total[u] += sg->outgoing_contrib[v];
+	      incoming_total[socketId][u] += sg->outgoing_contrib[v];
 	    }
 	  }
 	}
@@ -118,10 +128,9 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     for (NodeID n=0; n < num_nodes; n++) {
       ScoreT old_score = scores[n];
       ScoreT global_incoming_total = 0;
-      for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-	auto sg = graphSegments->getSegmentedGraph(segmentId);
-	global_incoming_total += sg->incoming_total[n];
-	sg->incoming_total[n] = 0;
+      for (int socketId = 0; socketId < num_places; socketId++) {
+	global_incoming_total += incoming_total[socketId][n];
+	incoming_total[socketId][n] = 0;
       }
       scores[n] = base_score + kDamp * global_incoming_total;
       error += fabs(scores[n] - old_score);
@@ -139,6 +148,10 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 
   numa_timer.Stop();
   PrintTime("NUMA Time", numa_timer.Seconds());
+
+  for (int socketId = 0; socketId < num_places; socketId++)
+    numa_free(incoming_total[socketId], sizeof(float) * num_nodes);
+
   return scores;
 }
 

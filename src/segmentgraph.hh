@@ -12,7 +12,6 @@ using namespace std;
 template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
-  float *incoming_total;
   float *outgoing_contrib;
   int *graphId;
   int *edgeArray;
@@ -40,7 +39,6 @@ public:
 
   ~SegmentedGraph()
   {
-    numa_free(incoming_total, sizeof(float) * numNodes);
     numa_free(outgoing_contrib, sizeof(float) * numNodes);
     numa_free(graphId, sizeof(int) * numVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
@@ -51,11 +49,6 @@ public:
   void allocate(int segment_id)
   {
     int node = segment_id % omp_get_num_places();;
-
-    incoming_total = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
-    #pragma omp parallel for
-    for (int i = 0; i < numNodes; i++)
-      incoming_total[i] = 0;
 
     outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
 

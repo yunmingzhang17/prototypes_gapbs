@@ -80,7 +80,8 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #pragma omp parallel for
       for (int i = 0; i < segmentRange; i++) {
 	int n = segmentId * segmentRange + i;
-	sg->outgoing_contrib[n] = scores[n] / g.out_degree(n);
+	if (n < num_nodes)
+	  sg->outgoing_contrib[n] = scores[n] / g.out_degree(n);
       }
     }
 #ifdef TIME_MSG

@@ -42,7 +42,7 @@ public:
     numa_free(outgoing_contrib, sizeof(float) * numNodes);
     numa_free(graphId, sizeof(int) * numVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
-    numa_free(vertexArray, sizeof(int) * numVertices);
+    numa_free(vertexArray, sizeof(int) * (numVertices + 1));
   }
 
 

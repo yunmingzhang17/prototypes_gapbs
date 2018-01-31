@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include <numa.h>
 
 #include "benchmark.h"
@@ -59,10 +60,11 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   }
 
 #ifdef LOAD_MSG
-  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numVertices << " vertices" << endl;
-  cout << "socket 0 has " << graphSegments->getSegmentedGraph(0)->numEdges << " edges" << endl;
-  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numVertices << " vertices" << endl;
-  cout << "socket 1 has " << graphSegments->getSegmentedGraph(1)->numEdges << " edges" << endl;
+  for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+    auto sg = graphSegments->getSegmentedGraph(segmentId);
+    cout << "segmentId=" << segmentId <<  " numVertices=" << graphSegments->getSegmentedGraph(segmentId)->numVertices
+	 << " numEdges=" << graphSegments->getSegmentedGraph(segmentId)->numEdges << endl;
+  }
 #endif
 
   Timer numa_timer;
@@ -95,6 +97,9 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 
     /* stage 2: pull from neighbor, used to be global random, now local random */
     omp_set_nested(1);
+#ifdef TIME_MSG
+  auto start = chrono::steady_clock::now();
+#endif
     int segments_per_socket = numSegments / num_places;
 #pragma omp parallel num_threads(num_places) proc_bind(spread)
     {
@@ -120,6 +125,14 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	  }
 	}
       }
+#ifdef TIME_MSG
+#pragma omp critical
+      {
+	auto end = chrono::steady_clock::now();
+	cout << "socket=" << socketId << " time=" << chrono::duration_cast<chrono::duration<double>>(end - start).count()
+	     << "seconds" << endl;
+      }
+#endif
     }
 #ifdef TIME_MSG
     debug_timer.Stop();

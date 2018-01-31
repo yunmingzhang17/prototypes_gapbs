@@ -42,17 +42,20 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   int num_places = omp_get_num_places();
   int numSegments = num_places * 5;
   int segmentRange = (num_nodes + numSegments) / numSegments;
-  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_nodes);
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments);
   BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
 
   // Build per socket local buffer
   float *incoming_total[num_places];
+  float *outgoing_contrib[num_places];
   for (int socketId = 0; socketId < num_places; socketId++) {
-    incoming_total[socketId] = (float *)numa_alloc_onnode(sizeof(float) * g.num_nodes(), socketId);
+    incoming_total[socketId] = (float *)numa_alloc_onnode(sizeof(float) * num_nodes, socketId);
 #pragma omp parallel for
     for (int n = 0; n < num_nodes; n++) {
       incoming_total[socketId][n] = 0;
     }
+
+    outgoing_contrib[socketId] = (float *)numa_alloc_onnode(sizeof(float) * num_nodes, socketId);
   }
 
 #ifdef LOAD_MSG
@@ -76,12 +79,12 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #endif
     /* stage 1: compute outgoing_contrib, global sequential */
     for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-      auto sg = graphSegments->getSegmentedGraph(segmentId);
+      int socketId = segmentId % num_places;
 #pragma omp parallel for
       for (int i = 0; i < segmentRange; i++) {
 	int n = segmentId * segmentRange + i;
 	if (n < num_nodes)
-	  sg->outgoing_contrib[n] = scores[n] / g.out_degree(n);
+	  outgoing_contrib[socketId][n] = scores[n] / g.out_degree(n);
       }
     }
 #ifdef TIME_MSG
@@ -112,7 +115,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	    int end = segmentVertexArray[localVertexId+1];
 	    for (int neighbor = start; neighbor < end; neighbor++) {
 	      int v = segmentEdgeArray[neighbor];
-	      incoming_total[socketId][u] += sg->outgoing_contrib[v];
+	      incoming_total[socketId][u] += outgoing_contrib[socketId][v];
 	    }
 	  }
 	}
@@ -150,8 +153,10 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   numa_timer.Stop();
   PrintTime("NUMA Time", numa_timer.Seconds());
 
-  for (int socketId = 0; socketId < num_places; socketId++)
+  for (int socketId = 0; socketId < num_places; socketId++) {
     numa_free(incoming_total[socketId], sizeof(float) * num_nodes);
+    numa_free(outgoing_contrib[socketId], sizeof(float) * num_nodes);
+  }
 
   return scores;
 }

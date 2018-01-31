@@ -12,13 +12,11 @@ using namespace std;
 template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
-  float *outgoing_contrib;
   int *graphId;
   int *edgeArray;
   int *vertexArray;
   int numVertices;
   int numEdges;
-  int numNodes;
   bool allocated;
 
 private:
@@ -27,7 +25,7 @@ private:
   Vertex lastEdgeIndex;
 
 public:
-  SegmentedGraph(int _numNodes) : numNodes(_numNodes)
+  SegmentedGraph()
   {
     allocated = false;
     numVertices = 0;
@@ -39,7 +37,6 @@ public:
 
   ~SegmentedGraph()
   {
-    numa_free(outgoing_contrib, sizeof(float) * numNodes);
     numa_free(graphId, sizeof(int) * numVertices);
     numa_free(edgeArray, sizeof(int) * numEdges);
     numa_free(vertexArray, sizeof(int) * (numVertices + 1));
@@ -49,8 +46,6 @@ public:
   void allocate(int segment_id)
   {
     int node = segment_id % omp_get_num_places();;
-
-    outgoing_contrib = (float *)numa_alloc_onnode(sizeof(float) * numNodes, node);
 
     vertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numVertices + 1), node); // start,end of last
     vertexArray[numVertices] = numEdges;
@@ -121,11 +116,11 @@ struct GraphSegments
   int numSegments;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
-  GraphSegments(int _numSegments, int numNodes): numSegments(_numSegments)
+  GraphSegments(int _numSegments): numSegments(_numSegments)
   {
     //alocate each graph segment
     for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph<int, int>(numNodes));
+      segments.push_back(new SegmentedGraph<int, int>());
     }
   }
 

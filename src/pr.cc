@@ -43,7 +43,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   int num_places = omp_get_num_places();
   int numSegments = num_places * 5;
   int segmentRange = (num_nodes + numSegments) / numSegments;
-  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments);
+  GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments, num_places);
   BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
 
   // Build per socket local buffer
@@ -80,15 +80,22 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
     debug_timer.Start();
 #endif
     /* stage 1: compute outgoing_contrib, global sequential */
-    for (int segmentId = 0; segmentId < numSegments; segmentId++) {
-      int socketId = segmentId % num_places;
+//     for (int segmentId = 0; segmentId < numSegments; segmentId++) {
+//       int socketId = segmentId % num_places;
+// #pragma omp parallel for
+//       for (int i = 0; i < segmentRange; i++) {
+// 	int n = segmentId * segmentRange + i;
+// 	if (n < num_nodes)
+// 	  outgoing_contrib[socketId][n] = scores[n] / g.out_degree(n);
+//       }
+//     }
 #pragma omp parallel for
-      for (int i = 0; i < segmentRange; i++) {
-	int n = segmentId * segmentRange + i;
-	if (n < num_nodes)
-	  outgoing_contrib[socketId][n] = scores[n] / g.out_degree(n);
+    for (int n = 0; n < num_nodes; n++) {
+      for (int i = 0; i < num_places; i++) {
+	outgoing_contrib[i][n] = scores[n] / g.out_degree(n);
       }
     }
+    graphSegments->distribute();
 #ifdef TIME_MSG
     debug_timer.Stop();
     cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;
@@ -100,17 +107,16 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 #ifdef TIME_MSG
   auto start = chrono::steady_clock::now();
 #endif
-    int segments_per_socket = numSegments / num_places;
 #pragma omp parallel num_threads(num_places) proc_bind(spread)
     {
       int socketId = omp_get_place_num();
       int n_procs = omp_get_place_num_procs(socketId);
-      for (int i = 0; i < segments_per_socket; i++) {
-	int segmentId = socketId + i * num_places;
-	auto sg = graphSegments->getSegmentedGraph(segmentId);
+      while (true) {
+	auto sg = graphSegments->getSegmentedGraphFromGroup(socketId);
+	if (!sg)
+	  break;
 	int* segmentVertexArray = sg->vertexArray;
 	int* segmentEdgeArray = sg->edgeArray;
-
 #pragma omp parallel num_threads(n_procs) proc_bind(close)
 	{
 #pragma omp for schedule(dynamic, 64)

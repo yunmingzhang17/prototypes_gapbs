@@ -4,7 +4,7 @@ CXX=icpc
 INCLUDE_DIR=./include/
 
 ifeq ($(DEBUG), 1)
-CXX_FLAGS += -std=c++11 -O0 -g -Wall -DDEBUG
+CXX_FLAGS += -std=c++11 -O0 -g -Wall -DDEBUG -march=native -mtune=native
 PAR_FLAG = -fopenmp
 
 else 

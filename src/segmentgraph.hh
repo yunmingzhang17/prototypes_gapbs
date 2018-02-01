@@ -15,9 +15,13 @@ struct SegmentedGraph
   int *graphId;
   int *edgeArray;
   int *vertexArray;
+  struct SegmentedGraph<DataT, Vertex> *next;
   int numVertices;
   int numEdges;
   bool allocated;
+
+  // debug purpose
+  int segmentId;
 
 private:
   int lastLocalIndex;
@@ -25,9 +29,10 @@ private:
   Vertex lastEdgeIndex;
 
 public:
-  SegmentedGraph()
+  SegmentedGraph(int _id) : segmentId(_id)
   {
     allocated = false;
+    next = NULL;
     numVertices = 0;
     numEdges = 0;
     lastVertex = -1;
@@ -114,14 +119,18 @@ template <class DataT, class Vertex>
 struct GraphSegments 
 {
   int numSegments;
+  int numGroups;
+  SegmentedGraph<DataT,Vertex> **groups;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
-  GraphSegments(int _numSegments): numSegments(_numSegments)
+  GraphSegments(int _numSegments, int _numGroups): numSegments(_numSegments), numGroups(_numGroups)
   {
-    //alocate each graph segment
-    for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph<int, int>());
-    }
+    groups = new SegmentedGraph<DataT,Vertex>*[numGroups]();
+
+    for (int i = 0; i < numSegments; i++){
+      auto sg = new SegmentedGraph<DataT, Vertex>(i);
+      segments.push_back(sg);
+    }    
   }
 
   ~GraphSegments(){
@@ -129,6 +138,18 @@ struct GraphSegments
    for (int i=0; i<numSegments; i++){
      delete segments[i];
    }
+   delete[] groups;
+  }
+
+  void distribute() {
+    // distribute segments into groups
+
+    for (int i = 0; i < numSegments; i++){
+      auto sg = segments[i];
+      int groupId = i % numGroups;
+      sg->next = groups[groupId];
+      groups[groupId] = sg;
+    }    
   }
 
   void allocate() {
@@ -139,6 +160,33 @@ struct GraphSegments
 
   SegmentedGraph<DataT, Vertex> * getSegmentedGraph(int id){
     return segments[id];
+  }
+
+  SegmentedGraph<DataT, Vertex> *getSegmentedGraphFromGroup(int groupId) {
+
+    // Try groupId's group first. If empty, try other grouops
+    auto sg = getHeadOrNull(groupId);
+    if (sg)
+      return sg;
+    int victimId = (groupId + 1) % numGroups;
+    while (victimId != groupId) {
+      sg = getHeadOrNull(victimId);
+      if (sg)
+	return sg;
+      victimId = (victimId + 1) % numGroups;
+    }
+    return NULL;
+  }
+
+  SegmentedGraph<DataT, Vertex> *getHeadOrNull(int groupId) {
+    auto head = groups[groupId];
+    while (head) {
+      auto next = head->next;
+      if (__sync_bool_compare_and_swap(&groups[groupId], head, next))
+	return head;
+      head = groups[groupId];
+    }
+    return NULL;
   }
 };
 

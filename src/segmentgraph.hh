@@ -121,15 +121,20 @@ struct GraphSegments
   int numSegments;
   int numGroups;
   SegmentedGraph<DataT,Vertex> **groups;
+  SegmentedGraph<DataT,Vertex> **unprocessedGroups;
   vector<SegmentedGraph<DataT,Vertex>*> segments;
   
   GraphSegments(int _numSegments, int _numGroups): numSegments(_numSegments), numGroups(_numGroups)
   {
     groups = new SegmentedGraph<DataT,Vertex>*[numGroups]();
+    unprocessedGroups = new SegmentedGraph<DataT,Vertex>*[numGroups]();
 
     for (int i = 0; i < numSegments; i++){
       auto sg = new SegmentedGraph<DataT, Vertex>(i);
       segments.push_back(sg);
+      int groupId = i % numGroups;
+      sg->next = groups[groupId];
+      groups[groupId] = sg;
     }    
   }
 
@@ -139,17 +144,12 @@ struct GraphSegments
      delete segments[i];
    }
    delete[] groups;
+   delete[] unprocessedGroups;
   }
 
-  void distribute() {
-    // distribute segments into groups
-
-    for (int i = 0; i < numSegments; i++){
-      auto sg = segments[i];
-      int groupId = i % numGroups;
-      sg->next = groups[groupId];
-      groups[groupId] = sg;
-    }    
+  void resetGroups() {
+    // In every iteration, unprocessedGroups should be set to groups
+    memcpy((void *)unprocessedGroups, (void *)groups, sizeof(*groups) * numGroups);
   }
 
   void allocate() {
@@ -179,12 +179,12 @@ struct GraphSegments
   }
 
   SegmentedGraph<DataT, Vertex> *getHeadOrNull(int groupId) {
-    auto head = groups[groupId];
+    auto head = unprocessedGroups[groupId];
     while (head) {
       auto next = head->next;
-      if (__sync_bool_compare_and_swap(&groups[groupId], head, next))
+      if (__sync_bool_compare_and_swap(&unprocessedGroups[groupId], head, next))
 	return head;
-      head = groups[groupId];
+      head = unprocessedGroups[groupId];
     }
     return NULL;
   }

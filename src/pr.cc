@@ -95,7 +95,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
 	outgoing_contrib[i][n] = scores[n] / g.out_degree(n);
       }
     }
-    graphSegments->distribute();
+    graphSegments->resetGroups();
 #ifdef TIME_MSG
     debug_timer.Stop();
     cout << "stage 1 took " << debug_timer.Seconds() << " seconds" << endl;

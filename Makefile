@@ -1,5 +1,5 @@
 # See LICENSE.txt for license details.
-CXX=icpc
+CXX=icpc -I /data/scratch/mengjiao/graphit/src/runtime_lib/ -DOPENMP
 
 INCLUDE_DIR=./include/
 
@@ -20,6 +20,10 @@ endif
 
 ifeq ($(LOAD_MSG), 1)
 CXX_FLAGS += -DLOAD_MSG
+endif
+
+ifeq ($(COUNT), 1)
+PCFLAGS += -DCOUNT
 endif
 
 ifdef NUMA
@@ -46,7 +50,7 @@ endif
 
 CXX_FLAGS += -I ${INCLUDE_DIR}
 
-KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec
+KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec numa_cc numa_pr_delta
 SUITE = $(KERNELS) converter
 
 .PHONY: all

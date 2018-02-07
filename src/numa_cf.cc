@@ -1,26 +1,46 @@
 #include <iostream> 
 #include <vector>
 #include "intrinsics.h"
+#include "segmentgraph_cache.hh"
+
 WGraph edges;
 typedef double defined_type_0 [ 20]; 
 defined_type_0 * __restrict  latent_vec;
 typedef double defined_type_1 [ 20]; 
 defined_type_1 * __restrict  error_vec;
+
 double step; 
 double lambda; 
 int K; 
-template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(WGraph & g , APPLY_FUNC apply_func) 
+template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(WGraph & g , APPLY_FUNC apply_func, GraphSegments<int,int>* graphSegments) 
 { 
     long numVertices = g.num_nodes(), numEdges = g.num_edges();
     if (g.offsets_ == nullptr) g.SetUpOffsets(true);
   SGOffset * edge_in_index = g.offsets_;
 
+  /* stage 2 */
+  for (int i = 0; i < graphSegments->numSegments; i++) {
+    auto sg = graphSegments->getSegmentedGraph(i);
+    int* segmentVertexArray = sg->vertexArray;
+    int* segmentEdgeArray = sg->edgeArray;
 #pragma omp parallel for schedule(dynamic, 16)
-  for (NodeID u=0; u < g.num_nodes(); u++) {
-    for (WNode v : g.in_neigh(u)) {
-      apply_func ( v.v , u, v.w );
+    for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
+      int u = sg->graphId[localVertexId];
+      int start = segmentVertexArray[localVertexId];
+      int end = segmentVertexArray[localVertexId+1];
+      for (int neighbor = start; neighbor < end; neighbor++) {
+  	WNode v = segmentEdgeArray[neighbor];
+  	apply_func ( v.v , u, v.w );
+      }
     }
   }
+
+// #pragma omp parallel for schedule(dynamic, 16)
+//   for (NodeID u=0; u < g.num_nodes(); u++) {
+//     for (WNode v : g.in_neigh(u)) {
+//       apply_func ( v.v , u, v.w );
+//     }
+//   }
 
   return new VertexSubset<NodeID>(g.num_nodes(), g.num_nodes());
 } //end of edgeset apply function 
@@ -67,9 +87,20 @@ int main(int argc, char * argv[] )
       initVertex(i);
     };
     startTimer() ;
+
+    // Build the segmented graph from graph
+    int numSegments = 4;
+    int segmentRange = (edges.num_nodes() + numSegments) / numSegments;
+    GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments);
+    BuildPullSegmentedGraphs((Graph*)&edges, graphSegments, segmentRange);
+
+    omp_set_nested(1);
+    Timer numa_timer;
+    numa_timer.Start();
+
     for ( int i = (0) ; i < (10) ; i++ )
     {
-      edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(edges, updateEdge); 
+      edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(edges, updateEdge, graphSegments); 
       parallel_for (int i = 0; i < builtin_getVertices(edges) ; i++) {
         updateVertex(i);
       };
@@ -84,6 +115,10 @@ int main(int argc, char * argv[] )
       std::cout << "latent_sum=" << latent_sum << endl;
 #endif
     }
+
+    numa_timer.Stop();
+    PrintTime("NUMA Time", numa_timer.Seconds());
+
     double elapsed_time = stopTimer() ;
     std::cout << "elapsed time: "<< std::endl;
     std::cout << elapsed_time<< std::endl;

@@ -50,7 +50,7 @@ endif
 
 CXX_FLAGS += -I ${INCLUDE_DIR}
 
-KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec numa_cc numa_pr_delta
+KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec numa_cc numa_pr_delta numa_cf
 SUITE = $(KERNELS) converter
 
 .PHONY: all

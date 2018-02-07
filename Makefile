@@ -23,7 +23,7 @@ CXX_FLAGS += -DLOAD_MSG
 endif
 
 ifeq ($(COUNT), 1)
-PCFLAGS += -DCOUNT
+CXX_FLAGS += -DCOUNT
 endif
 
 ifdef NUMA

@@ -14,22 +14,14 @@ template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_paralle
     long numVertices = g.num_nodes(), numEdges = g.num_edges();
     if (g.offsets_ == nullptr) g.SetUpOffsets(true);
   SGOffset * edge_in_index = g.offsets_;
-    std::function<void(int,int,int)> recursive_lambda = 
-    [apply_func, &g,  &recursive_lambda, edge_in_index  ]
-    (NodeID start, NodeID end, int grain_size){
-         if ((start == end-1) || ((edge_in_index[end] - edge_in_index[start]) < grain_size)){
-  for (NodeID d = start; d < end; d++){
-    for(WNode s : g.in_neigh(d)){
-      apply_func ( s.v , d, s.w );
-    } //end of loop on in neighbors
-   } //end of outer for loop
-        } else { // end of if statement on grain size, recursive case next
-                 cilk_spawn recursive_lambda(start, start + ((end-start) >> 1), grain_size);
-                  recursive_lambda(start + ((end-start)>>1), end, grain_size);
-        } 
-    }; //end of lambda function
-    recursive_lambda(0, numVertices, 4096);
-    cilk_sync; 
+
+#pragma omp parallel for schedule(dynamic, 16)
+  for (NodeID u=0; u < g.num_nodes(); u++) {
+    for (WNode v : g.in_neigh(u)) {
+      apply_func ( v.v , u, v.w );
+    }
+  }
+
   return new VertexSubset<NodeID>(g.num_nodes(), g.num_nodes());
 } //end of edgeset apply function 
 void updateEdge(NodeID src, NodeID dst, int rating) 
@@ -81,6 +73,16 @@ int main(int argc, char * argv[] )
       parallel_for (int i = 0; i < builtin_getVertices(edges) ; i++) {
         updateVertex(i);
       };
+#ifdef COUNT
+      double latent_sum = 0;
+#pragma omp parallel for reduction(+ : latent_sum)
+      for (int v = 0; v < builtin_getVertices(edges); v++) {
+	for (int i = 0; i < K; i++) {
+	  latent_sum += latent_vec[v][i];
+	}
+      }
+      std::cout << "latent_sum=" << latent_sum << endl;
+#endif
     }
     double elapsed_time = stopTimer() ;
     std::cout << "elapsed time: "<< std::endl;

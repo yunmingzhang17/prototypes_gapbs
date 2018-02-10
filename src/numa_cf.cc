@@ -12,7 +12,7 @@ defined_type_1 * __restrict  error_vec;
 double step; 
 double lambda; 
 int K; 
-template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(WGraph & g , APPLY_FUNC apply_func, GraphSegments<int,int>* graphSegments) 
+template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_parallel_weighted_pull_edge_based_load_balance(WGraph & g , APPLY_FUNC apply_func, GraphSegments<WNode,NodeID>* graphSegments) 
 { 
     long numVertices = g.num_nodes(), numEdges = g.num_edges();
     if (g.offsets_ == nullptr) g.SetUpOffsets(true);
@@ -22,7 +22,7 @@ template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_paralle
   for (int i = 0; i < graphSegments->numSegments; i++) {
     auto sg = graphSegments->getSegmentedGraph(i);
     int* segmentVertexArray = sg->vertexArray;
-    int* segmentEdgeArray = sg->edgeArray;
+    WNode* segmentEdgeArray = sg->edgeArray;
 #pragma omp parallel for schedule(dynamic, 16)
     for (int localVertexId = 0; localVertexId < sg->numVertices; localVertexId++) {
       int u = sg->graphId[localVertexId];
@@ -34,13 +34,6 @@ template <typename APPLY_FUNC > VertexSubset<NodeID>* edgeset_apply_pull_paralle
       }
     }
   }
-
-// #pragma omp parallel for schedule(dynamic, 16)
-//   for (NodeID u=0; u < g.num_nodes(); u++) {
-//     for (WNode v : g.in_neigh(u)) {
-//       apply_func ( v.v , u, v.w );
-//     }
-//   }
 
   return new VertexSubset<NodeID>(g.num_nodes(), g.num_nodes());
 } //end of edgeset apply function 
@@ -89,10 +82,10 @@ int main(int argc, char * argv[] )
     startTimer() ;
 
     // Build the segmented graph from graph
-    int numSegments = 4;
+    int numSegments = 7;
     int segmentRange = (edges.num_nodes() + numSegments) / numSegments;
-    GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments);
-    BuildPullSegmentedGraphs((Graph*)&edges, graphSegments, segmentRange);
+    GraphSegments<WNode,int>* graphSegments = new GraphSegments<WNode,int>(numSegments);
+    BuildPullSegmentedGraphsWeighted(&edges, graphSegments, segmentRange);
 
     omp_set_nested(1);
     Timer numa_timer;

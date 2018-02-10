@@ -43,7 +43,7 @@ pvector<ScoreT> PageRankPull(const Graph &g, int max_iters,
   int numSegments = 10;
   int segmentRange = (num_nodes + numSegments) / numSegments;
   GraphSegments<int,int>* graphSegments = new GraphSegments<int,int>(numSegments);
-  BuildPullSegmentedGraphs(&g, graphSegments, segmentRange);
+  BuildPullSegmentedGraphsUnweighted(&g, graphSegments, segmentRange);
 
   Timer numa_timer;
   numa_timer.Start();

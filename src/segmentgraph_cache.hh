@@ -13,7 +13,7 @@ template <class DataT, class Vertex>
 struct SegmentedGraph 
 {
   int *graphId;
-  int *edgeArray;
+  DataT *edgeArray;
   int *vertexArray;
   int numVertices;
   int numEdges;
@@ -52,7 +52,7 @@ public:
 
     vertexArray = new int[numVertices + 1]; // start,end of last              
     vertexArray[numVertices] = numEdges;
-    edgeArray = new int[numEdges];
+    edgeArray = new DataT[numEdges];
     graphId = new int[numVertices];
     // vertexArray = (int *)numa_alloc_onnode(sizeof(int) * (numVertices + 1), node); // start,end of last
     // vertexArray[numVertices] = numEdges;
@@ -81,7 +81,7 @@ public:
    * @e: dst in pull direction, src in push direction
    **/
   inline
-  void addEdge(Vertex toVertexArray, Vertex toEdgeArray)
+  void addEdge(Vertex toVertexArray, DataT toEdgeArray)
   {
     if (toVertexArray != lastVertex) {
       // a new vertex going to the same partition                                   
@@ -127,7 +127,7 @@ struct GraphSegments
   {
     //alocate each graph segment
     for (int i=0; i<numSegments; i++){
-      segments.push_back(new SegmentedGraph<int, int>());
+      segments.push_back(new SegmentedGraph<DataT, Vertex>());
     }
   }
 
@@ -150,7 +150,7 @@ struct GraphSegments
 };
 
 template <class DataT, class Vertex>
-void BuildPullSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
+void BuildPullSegmentedGraphsUnweighted(const Graph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
 {
   //Go through the original graph and count the number of target vertices and edges for each segment
   for (NodeID v : originalGraph->vertices()){
@@ -167,6 +167,29 @@ void BuildPullSegmentedGraphs(const Graph* originalGraph, GraphSegments<DataT,Ve
   for (NodeID v : originalGraph->vertices()){
     for (NodeID u : originalGraph->in_neigh(v)){
       int segment_id = u/segmentRange;
+      graphSegments->getSegmentedGraph(segment_id)->addEdge(v, u);
+    }
+  }
+}
+
+template <class DataT, class Vertex>
+void BuildPullSegmentedGraphsWeighted(const WGraph* originalGraph, GraphSegments<DataT,Vertex> * graphSegments, int segmentRange)
+{
+  //Go through the original graph and count the number of target vertices and edges for each segment
+  for (NodeID v : originalGraph->vertices()){
+    for (WNode u : originalGraph->in_neigh(v)){
+      int segment_id = u.v/segmentRange;
+      graphSegments->getSegmentedGraph(segment_id)->countEdge(v);
+    }
+  }
+
+  //Allocate each segment
+  graphSegments->allocate();
+
+  //Add the edges for each segment
+  for (NodeID v : originalGraph->vertices()){
+    for (WNode u : originalGraph->in_neigh(v)){
+      int segment_id = u.v/segmentRange;
       graphSegments->getSegmentedGraph(segment_id)->addEdge(v, u);
     }
   }

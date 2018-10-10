@@ -34,7 +34,7 @@ endif
 
 CXX_FLAGS += -I ${INCLUDE_DIR}
 
-KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec
+KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec cc_sv
 SUITE = $(KERNELS) converter
 
 .PHONY: all
@@ -45,6 +45,10 @@ all: $(SUITE)
 
 # Testing
 include test/test.mk
+
+# Benchmark Automation
+include benchmark/bench.mk
+
 
 .PHONY: clean
 clean:

@@ -1,5 +1,5 @@
 # See LICENSE.txt for license details.
-CXX=icpc
+CXX=g++-5.4
 
 INCLUDE_DIR=./include/
 

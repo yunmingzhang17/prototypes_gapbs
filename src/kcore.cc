@@ -25,19 +25,20 @@ pvector<NodeID> kcore_atomics (const Graph &g){
   std::cout << "running kcore" << std::endl;
   //iterate though the current bucket 
 #ifdef DEBUG_ATOMICS
-  size_t deg_1_count = 0;
+  //size_t deg_1_count = 0;
 #endif
+
+  size_t min_degree = numeric_limits<size_t>::max()/2;
 
   for (NodeID n : g.vertices()){
     degree[n] = g.out_degree(n);
-    #ifdef DEBUG_ATOMICS
-    if (degree[n] == 1) deg_1_count++;
-    #endif
+    if (min_degree > degree[n]) min_degree = degree[n];
   }
 
   
 #ifdef DEBUG_ATOMICS
-  cout << "actual deg 1 vertices count: " << deg_1_count <<  endl;
+    //cout << "actual deg 1 vertices count: " << deg_1_count <<  endl;
+    cout << "min degree: " << min_degree << endl;
 #endif
 
   pvector<NodeID> frontier(g.num_edges_directed());
@@ -58,7 +59,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
     vector<NodeID> local_bin(0);
     #pragma omp for nowait schedule(dynamic, 64)
     for (NodeID i = 0; i < g.num_nodes(); i++){
-      if (degree[i] == 1){
+      if (degree[i] == min_degree){
 	local_bin.push_back(i);
       }
     }
@@ -79,7 +80,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
 #endif
 
 #ifdef DEBUG_ATOMICS
-  std::cout << "measured number of degree 1 vertices: " << frontier_tail << endl;
+  std::cout << "measured number of min_degree vertices: " << frontier_tail << endl;
 #endif  
   
   //start from the first round, and proceed
@@ -179,9 +180,8 @@ t.Start();
   cout << "total exec time: " << total_t.Millisecs()/1000 << endl;
 
   int max_core = 0;
-#pragma omp parallel for reduction(max: max_core)
   for (size_t i = 0; i < g.num_nodes(); i++){
-    max_core = degree[i];
+    if (degree[i] > max_core) max_core = degree[i];
   }
 
   cout << "max of core: " << max_core << endl;

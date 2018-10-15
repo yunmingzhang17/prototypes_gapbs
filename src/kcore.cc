@@ -75,7 +75,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
  t.Stop();
 
 #ifdef TIME_ATOMICS
- cout << "first round took: " << t.Millisecs() << endl;
+ cout << "first round took: " << t.Millisecs()/1000 << endl;
 #endif
 
 #ifdef DEBUG_ATOMICS
@@ -93,11 +93,11 @@ pvector<NodeID> kcore_atomics (const Graph &g){
   
 t.Start();
 
-  size_t iter = 0;
+
 
   #pragma omp parallel
   {
-
+    size_t iter = 0;
     vector<vector<NodeID>> local_bins(0);
     
     while (shared_indexes[iter & 1] != kMaxBin){
@@ -107,7 +107,8 @@ t.Start();
       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
       size_t k = curr_bin_index + 2;
 
-      cout << " current frontier tail:  " << curr_frontier_tail << endl;
+      #pragma omp single
+      cout << " current frontier size:  " << curr_frontier_tail << endl;
 
       #pragma omp for nowait schedule (dynamic, 64)
       for (size_t i = 0; i < curr_frontier_tail; i++){
@@ -144,14 +145,17 @@ t.Start();
 	}
       }// end of for loop to find the next bin index
 
-      cout << "next_bin_index:" << next_bin_index << endl;
+
 
       #pragma omp barrier
+      
+      //cout << "next_bin_index:" << next_bin_index << endl;
+
       #pragma omp single nowait
       {
-        t.Stop();
-        PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
-        t.Start();
+      //t.Stop();
+      // PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
+      // t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
       }
@@ -167,11 +171,20 @@ t.Start();
       #pragma omp barrier
 
     }//end of while
+    #pragma omp single
+    cout << "number of iter: " << iter << endl;
   }//end of the parallel region
   
   total_t.Stop();
   cout << "total exec time: " << total_t.Millisecs()/1000 << endl;
-  cout << "number of iter: " << iter << endl;
+
+  int max_core = 0;
+#pragma omp parallel for reduction(max: max_core)
+  for (size_t i = 0; i < g.num_nodes(); i++){
+    max_core = degree[i];
+  }
+
+  cout << "max of core: " << max_core << endl;
 
   return degree;
 }

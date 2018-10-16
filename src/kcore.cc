@@ -22,6 +22,13 @@ using namespace std;
 
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
+bool has_unprocessed(vector<NodeID> bin, pvector<bool> &processed){
+  for (NodeID i : bin){
+    if (processed[i] == false) return true;
+  }
+  return false;
+}
+
 pvector<NodeID> kcore_atomics (const Graph &g){
 
 
@@ -102,7 +109,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
     size_t copy_start = fetch_and_add(first_frontier_tail, 
 				      local_bins[start_bin_index].size());
     copy(local_bins[start_bin_index].begin(), local_bins[start_bin_index].end(), frontier.data() + copy_start);
-    //release the bin after being copied
+    //release the  bin after being copied
     local_bins[start_bin_index].resize(0);    
 
 #ifdef DEBUG_ATOMICS
@@ -138,6 +145,36 @@ pvector<NodeID> kcore_atomics (const Graph &g){
 	cout << " current bin index: " << curr_bin_index << endl;
       }
 #endif
+      
+     /** if (curr_frontier_tail < 100){
+	#pragma omp single 
+	{
+
+	  for (size_t i = 0; i < curr_frontier_tail; i++){
+	    NodeID u = frontier[i];
+	    // if the node is already processed in an earlier bin
+	    // then skip the current node
+	    if (processed[u]) continue;
+	    // set the node to be processed after this round (removed)
+	    else processed[u] = true;
+	    for (NodeID ngh : g.out_neigh(u)){
+	      if (degree[ngh] > k) {
+		//update the degree of the neighbor
+		// this value should be unique across threads, no duplicated vertices in the same bin
+		size_t latest_degree = degree[ngh] - 1;
+		//insert into the right bucket
+		size_t dest_bin = latest_degree;
+		if (dest_bin >= local_bins.size()){
+		  local_bins.resize(dest_bin+1);
+		}
+		local_bins[dest_bin].push_back(ngh);
+	      }//end of if degree[ngh] > k
+	    }//end of inner for
+	  }//end of outer for
+	}//end of pragma omp si 
+	}//end of the serial version 
+	else {**/
+
 
       #pragma omp for nowait schedule (dynamic, 64)
       for (size_t i = 0; i < curr_frontier_tail; i++){
@@ -185,7 +222,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;
       //	cout << "next bin index: " << next_bin_index << endl;
-	if (!local_bins[i].empty()){
+	if (!local_bins[i].empty() && has_unprocessed(local_bins[i], processed)){
 	  #pragma omp critical
 	  next_bin_index = min(next_bin_index, i);
 	  break;

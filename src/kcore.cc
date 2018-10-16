@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <iostream>
 #include <vector>
+#include <cinttypes>
+#include <queue>
+#include <limits>
 
 #include "benchmark.h"
 #include "builder.h"
@@ -11,8 +14,9 @@
 #include "graph.h"
 #include "pvector.h"
 
-#define DEBUG_ATOMICS
+//#define DEBUG_ATOMICS
 #define TIME_ATOMICS
+//#define PRINT_CORES
 
 using namespace std;
 
@@ -28,17 +32,18 @@ pvector<NodeID> kcore_atomics (const Graph &g){
   //size_t deg_1_count = 0;
 #endif
 
-  size_t min_degree = numeric_limits<size_t>::max()/2;
+  //size_t min_degree = numeric_limits<size_t>::max()/2;
 
-  for (NodeID n : g.vertices()){
-    degree[n] = g.out_degree(n);
-    if (min_degree > degree[n]) min_degree = degree[n];
+#pragma omp parallel for
+  for (NodeID i = 0; i < g.num_nodes(); i++){
+    degree[i] = g.out_degree(i);
+    //if (min_degree > degree[n] && degree[n] != 0) min_degree = degree[n];
   }
 
   
 #ifdef DEBUG_ATOMICS
     //cout << "actual deg 1 vertices count: " << deg_1_count <<  endl;
-    cout << "min degree: " << min_degree << endl;
+    //cout << "min degree: " << min_degree << endl;
 #endif
 
   pvector<NodeID> frontier(g.num_edges_directed());
@@ -49,67 +54,90 @@ pvector<NodeID> kcore_atomics (const Graph &g){
 
   total_t.Start();
   
-  t.Start();
-
-  //do something to initilize the frontier with degree 1 nodes efficiently 
-  size_t frontier_tail = 0;
-
-  #pragma omp parallel 
-  {
-    vector<NodeID> local_bin(0);
-    #pragma omp for nowait schedule(dynamic, 64)
-    for (NodeID i = 0; i < g.num_nodes(); i++){
-      if (degree[i] == min_degree){
-	local_bin.push_back(i);
-      }
-    }
-    #pragma omp barrier 
-
-    size_t copy_start = fetch_and_add(frontier_tail, 
-				      local_bin.size());
-    copy(local_bin.begin(), local_bin.end(), frontier.data() + copy_start);
-    local_bin.resize(0);
-    #pragma omp barrier
-    
-  }
-
- t.Stop();
-
-#ifdef TIME_ATOMICS
- cout << "first round took: " << t.Millisecs()/1000 << endl;
-#endif
-
-#ifdef DEBUG_ATOMICS
-  std::cout << "measured number of min_degree vertices: " << frontier_tail << endl;
-#endif  
-  
-  //start from the first round, and proceed
+  //t.Start();
+ //start from the first round, and proceed
 
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
   size_t shared_indexes[2] = {0, kMaxBin};
-  size_t frontier_tails[2] = {frontier_tail, 0};
-  
+  size_t frontier_tails[2] = {0, 0};
+  size_t first_frontier_tail = 0;
   //set up a boolean vector to keep track wether each vertex has been processed already
   pvector<bool> processed(g.num_nodes(), false);
-  
-t.Start();
 
+  size_t start_bin_index = kMaxBin;
 
-
-  #pragma omp parallel
+  #pragma omp parallel 
   {
+
+    //doing a first pass to put every node into the right initial bin
+    vector<vector<NodeID>> local_bins(1);
+
+    #pragma omp for nowait schedule(dynamic, 64)
+    for (NodeID i = 0; i < g.num_nodes(); i++){
+      size_t dest_bin = degree[i];
+      if (dest_bin >= local_bins.size()){
+        local_bins.resize(dest_bin+1);
+      }
+
+#ifdef DEBUG_ATOMICS
+      cout << "  putting node: " << i << " with degree: " << degree[i] <<  " into bin: " << dest_bin << endl;
+#endif
+
+      local_bins[dest_bin].push_back(i);
+
+    }
+
+    //find the bin to start (the smallest degree)
+
+    for (size_t i = 0; i < local_bins.size(); i++){
+      if (!local_bins[i].empty()){
+        #pragma omp critical
+	start_bin_index = min(start_bin_index, i);
+	break;
+      }
+    }// end of for loop to find the smallest bin index
+
+    #pragma omp barrier 
+    
+    size_t copy_start = fetch_and_add(first_frontier_tail, 
+				      local_bins[start_bin_index].size());
+    copy(local_bins[start_bin_index].begin(), local_bins[start_bin_index].end(), frontier.data() + copy_start);
+    //release the bin after being copied
+    local_bins[start_bin_index].resize(0);    
+
+#ifdef DEBUG_ATOMICS
+    cout << "start bin index: " << start_bin_index << endl;
+    cout << "start bin size: " << first_frontier_tail << endl;
+#endif
+
+    #pragma omp single
+    {
+      shared_indexes[0] = start_bin_index;
+      frontier_tails[0] = first_frontier_tail;
+    }
+    #pragma omp barrier
+    
+
+ 
+
     size_t iter = 0;
-    vector<vector<NodeID>> local_bins(0);
+
     
     while (shared_indexes[iter & 1] != kMaxBin){
       size_t &curr_bin_index = shared_indexes[iter&1];
       size_t &next_bin_index = shared_indexes[(iter+1)&1];
       size_t &curr_frontier_tail = frontier_tails[iter&1];
       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
-      size_t k = curr_bin_index + 2;
-
+      size_t k = curr_bin_index;
+ 
+#ifdef DEBUG_ATOMICS     
       #pragma omp single
-      cout << " current frontier size:  " << curr_frontier_tail << endl;
+      {
+	cout << "k: " << k << endl;
+        cout << " current frontier size:  " << curr_frontier_tail << endl;
+	cout << " current bin index: " << curr_bin_index << endl;
+      }
+#endif
 
       #pragma omp for nowait schedule (dynamic, 64)
       for (size_t i = 0; i < curr_frontier_tail; i++){
@@ -120,25 +148,43 @@ t.Start();
 	// set the node to be processed after this round (removed)
 	else processed[u] = true;
 
+#ifdef DEBUG_ATOMICS
+	cout << "current node: " << u << endl;
+#endif
+
 	for (NodeID ngh : g.out_neigh(u)){
+
+#ifdef DEBUG_ATOMICS
+          cout << "  ngh " << ngh <<  " with degree: " << degree[ngh] << endl;
+#endif
+
           if (degree[ngh] > k) {
 	    //update the degree of the neighbor
 	    // this value should be unique across threads, no duplicated vertices in the same bin
-	    size_t latest_degree = fetch_and_add(degree[ngh],-1);
+	    size_t latest_degree = fetch_and_add(degree[ngh],-1) - 1;
 
-	    if (latest_degree >= k){ //only update if it is more than the k degree
+#ifdef DEBUG_ATOMICS
+	    cout << "  node: " << ngh << " with latest degree: " << latest_degree << endl;
+#endif
+
+	    //if (latest_degree >= k){ //only update if it is more than the k degree
 	      //insert into the right bucket
 	      size_t dest_bin = latest_degree;
 	      if (dest_bin >= local_bins.size()){
 		local_bins.resize(dest_bin+1);
 	      }
+#ifdef DEBUG_ATOMICS
+	      cout << "  push node: " << ngh << " into bin: " << dest_bin << endl;
+#endif
 	      local_bins[dest_bin].push_back(ngh);
 	    } 
-	  }//end of if statement
+	  //}//end of if statement
         } //end of inner for
       }//end of outer for
 
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
+      //cout << "index: " << i << endl;
+      //	cout << "next bin index: " << next_bin_index << endl;
 	if (!local_bins[i].empty()){
 	  #pragma omp critical
 	  next_bin_index = min(next_bin_index, i);
@@ -180,8 +226,11 @@ t.Start();
   cout << "total exec time: " << total_t.Millisecs()/1000 << endl;
 
   int max_core = 0;
-  for (size_t i = 0; i < g.num_nodes(); i++){
+  for (NodeID i = 0; i < g.num_nodes(); i++){
     if (degree[i] > max_core) max_core = degree[i];
+#ifdef PRINT_CORES
+    cout << "Node " <<  i << " core: " <<  degree[i] << endl;
+#endif
   }
 
   cout << "max of core: " << max_core << endl;

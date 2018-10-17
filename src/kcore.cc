@@ -17,6 +17,7 @@
 //#define DEBUG_ATOMICS
 #define TIME_ATOMICS
 //#define PRINT_CORES
+//#define PROFILE
 
 using namespace std;
 
@@ -96,6 +97,7 @@ NodeID* kcore_atomics (const Graph &g){
   pvector<bool> processed(g.num_nodes(), false);
 
   size_t start_bin_index = kMaxBin;
+  size_t number_bins_merged = 0;
 
   #pragma omp parallel 
   {
@@ -161,9 +163,10 @@ NodeID* kcore_atomics (const Graph &g){
       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
       size_t k = curr_bin_index;
  
-#ifdef DEBUG_ATOMICS     
+#ifdef PROFILE     
       #pragma omp single
       {
+        cout << "iter: " << iter << endl;
 	cout << "k: " << k << endl;
         cout << " current frontier size:  " << curr_frontier_tail << endl;
 	cout << " current bin index: " << curr_bin_index << endl;
@@ -250,7 +253,14 @@ NodeID* kcore_atomics (const Graph &g){
       //	cout << "next bin index: " << next_bin_index << endl;
 	if (!local_bins[i].empty() && has_unprocessed(local_bins[i], processed)){
 	  #pragma omp critical
-	  next_bin_index = min(next_bin_index, i);
+	  {
+
+    //#ifdef PROFILE
+	   if (next_bin_index == i) number_bins_merged++;
+	   else if (next_bin_index > i) number_bins_merged = 1;  
+	   //#endif
+	   next_bin_index = min(next_bin_index, i);
+	  }
 	  break;
 	}
       }// end of for loop to find the next bin index
@@ -268,6 +278,10 @@ NodeID* kcore_atomics (const Graph &g){
       // t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
+#ifdef PROFILE
+	cout << "number of bins needed for merge: " << number_bins_merged << endl;
+#endif
+	number_bins_merged = 0;
       }
 
       if (next_bin_index < local_bins.size()) {

@@ -20,6 +20,30 @@
 
 using namespace std;
 
+
+template <class ET>
+inline bool CAS(ET *ptr, ET oldv, ET newv) {
+  if (sizeof(ET) == 1) {
+    return __sync_bool_compare_and_swap((bool*)ptr, *((bool*)&oldv), *((bool*)&newv));
+  } else if (sizeof(ET) == 4) {
+    return __sync_bool_compare_and_swap((int*)ptr, *((int*)&oldv), *((int*)&newv));
+  } else if (sizeof(ET) == 8) {
+    return __sync_bool_compare_and_swap((long*)ptr, *((long*)&oldv), *((long*)&newv));
+  }
+  else {
+    std::cout << "CAS bad length : " << sizeof(ET) << std::endl;
+    abort();
+  }
+}
+
+
+template <class ET>
+inline void writeAdd(ET *a, ET b) {
+  volatile ET newV, oldV;
+  do {oldV = *a; newV = oldV + b;}
+  while (!CAS(a, oldV, newV));
+}
+
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
 bool has_unprocessed(vector<NodeID> bin, pvector<bool> &processed){
@@ -29,10 +53,10 @@ bool has_unprocessed(vector<NodeID> bin, pvector<bool> &processed){
   return false;
 }
 
-pvector<NodeID> kcore_atomics (const Graph &g){
+NodeID* kcore_atomics (const Graph &g){
 
 
-  pvector<NodeID> degree(g.num_nodes());
+  NodeID* degree = new NodeID[g.num_nodes()];
   std::cout << "running kcore" << std::endl;
   //iterate though the current bucket 
 #ifdef DEBUG_ATOMICS
@@ -198,7 +222,9 @@ pvector<NodeID> kcore_atomics (const Graph &g){
           if (degree[ngh] > k) {
 	    //update the degree of the neighbor
 	    // this value should be unique across threads, no duplicated vertices in the same bin
-	    size_t latest_degree = fetch_and_add(degree[ngh],-1) - 1;
+	    //NodeID latest_degree = fetch_and_add(degree[ngh],-1) - 1;
+	    writeAdd(&degree[ngh],-1);
+	    NodeID latest_degree = degree[ngh];
 
 #ifdef DEBUG_ATOMICS
 	    cout << "  node: " << ngh << " with latest degree: " << latest_degree << endl;
@@ -206,7 +232,7 @@ pvector<NodeID> kcore_atomics (const Graph &g){
 
 	    //if (latest_degree >= k){ //only update if it is more than the k degree
 	      //insert into the right bucket
-	      size_t dest_bin = latest_degree;
+	    NodeID dest_bin = latest_degree > 0 ? latest_degree : 0;
 	      if (dest_bin >= local_bins.size()){
 		local_bins.resize(dest_bin+1);
 	      }
@@ -282,6 +308,7 @@ int main(int argc, char* argv[]) {
   Builder b(cli);
   Graph g = b.MakeGraph();
   std::cout << "num vertices: " << g.num_nodes() << std::endl;
+  std::cout << "num edges: " << g.num_edges() << std::endl;
   for (int trail = 0; trail < 3; trail++){
     kcore_atomics(g);
   }

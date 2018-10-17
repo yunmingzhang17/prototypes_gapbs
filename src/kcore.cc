@@ -309,7 +309,7 @@ int main(int argc, char* argv[]) {
   Graph g = b.MakeGraph();
   std::cout << "num vertices: " << g.num_nodes() << std::endl;
   std::cout << "num edges: " << g.num_edges() << std::endl;
-  for (int trail = 0; trail < 3; trail++){
+  for (int trail = 0; trail < 5; trail++){
     kcore_atomics(g);
   }
   return 0;

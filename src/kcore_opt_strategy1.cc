@@ -7,6 +7,7 @@
 #include <cinttypes>
 #include <queue>
 #include <limits>
+#include <omp.h>
 
 #include "benchmark.h"
 #include "builder.h"
@@ -46,6 +47,7 @@ inline void writeAdd(ET *a, ET b) {
 }
 
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
+const size_t serial_size = 500;
 
 bool has_unprocessed(vector<NodeID> bin, pvector<bool> &processed){
   for (NodeID i : bin){
@@ -97,13 +99,15 @@ NodeID* kcore_atomics (const Graph &g){
   pvector<bool> processed(g.num_nodes(), false);
 
   size_t start_bin_index = kMaxBin;
-  
+  volatile size_t number_bins_merged = 0;
+  volatile int thread_with_min_bin = -1; 
 
   #pragma omp parallel 
   {
 
     //doing a first pass to put every node into the right initial bin
     vector<vector<NodeID>> local_bins(1);
+    int tid = omp_get_thread_num();
 
     #pragma omp for nowait schedule(dynamic, 64)
     for (NodeID i = 0; i < g.num_nodes(); i++){
@@ -149,12 +153,9 @@ NodeID* kcore_atomics (const Graph &g){
       frontier_tails[0] = first_frontier_tail;
     }
     #pragma omp barrier
-    
-
- 
+   
 
     size_t iter = 0;
-
     
     while (shared_indexes[iter & 1] != kMaxBin){
       size_t &curr_bin_index = shared_indexes[iter&1];
@@ -173,34 +174,52 @@ NodeID* kcore_atomics (const Graph &g){
       }
 #endif
       
-     /** if (curr_frontier_tail < 100){
-	#pragma omp single 
-	{
-
+      if( number_bins_merged == 1 && curr_frontier_tail <= serial_size){
+	if (thread_with_min_bin == tid) {
+#ifdef DEBUG_ATOMICS
+	cout << "serial execution in tid: " << thread_with_min_bin << endl;
+#endif
 	  for (size_t i = 0; i < curr_frontier_tail; i++){
-	    NodeID u = frontier[i];
+	    NodeID u = local_bins[curr_bin_index][i];
 	    // if the node is already processed in an earlier bin
 	    // then skip the current node
 	    if (processed[u]) continue;
 	    // set the node to be processed after this round (removed)
 	    else processed[u] = true;
+#ifdef DEBUG_ATOMICS
+	    cout << "current node: " << u << endl;
+#endif
 	    for (NodeID ngh : g.out_neigh(u)){
+
+
+#ifdef DEBUG_ATOMICS
+          cout << "  ngh " << ngh <<  " with degree: " << degree[ngh] << endl;
+#endif
+
 	      if (degree[ngh] > k) {
 		//update the degree of the neighbor
 		// this value should be unique across threads, no duplicated vertices in the same bin
 		size_t latest_degree = degree[ngh] - 1;
 		//insert into the right bucket
+		degree[ngh] = latest_degree;
 		size_t dest_bin = latest_degree;
+
+#ifdef DEBUG_ATOMICS
+	    cout << "  node: " << ngh << " with latest degree: " << latest_degree << endl;
+#endif
 		if (dest_bin >= local_bins.size()){
 		  local_bins.resize(dest_bin+1);
 		}
+#ifdef DEBUG_ATOMICS
+	      cout << "  push node: " << ngh << " into bin: " << dest_bin << endl;
+#endif
 		local_bins[dest_bin].push_back(ngh);
-	      }//end of if degree[ngh] > k
+	      }//end of if degreee
 	    }//end of inner for
-	  }//end of outer for
-	}//end of pragma omp si 
-	}//end of the serial version 
-	else {**/
+	  }//end of outer for     
+	}//end of if thread_with_min_bin
+      }else{ 
+    // parallel execution if there are more than one bin processed
 
 
       #pragma omp for nowait schedule (dynamic, 64)
@@ -248,6 +267,9 @@ NodeID* kcore_atomics (const Graph &g){
         } //end of inner for
       }//end of outer for
 
+  }//end of else for parallel execution
+
+  //find the next min bin
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;
       //	cout << "next bin index: " << next_bin_index << endl;
@@ -256,7 +278,13 @@ NodeID* kcore_atomics (const Graph &g){
 	  {
 
     //#ifdef PROFILE
-	   
+	   if (next_bin_index == i) number_bins_merged++;
+	   //set the current thread that has the minimum bin
+	   else if (next_bin_index > i) {
+	      number_bins_merged = 1; 
+	      next_frontier_tail=local_bins[i].size(); 
+	      thread_with_min_bin=tid;
+           }
 	   //#endif
 	   next_bin_index = min(next_bin_index, i);
 	  }
@@ -268,7 +296,6 @@ NodeID* kcore_atomics (const Graph &g){
 
       #pragma omp barrier
       
-      //cout << "next_bin_index:" << next_bin_index << endl;
 
       #pragma omp single nowait
       {
@@ -277,17 +304,32 @@ NodeID* kcore_atomics (const Graph &g){
       // t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
+#ifdef PROFILE
+	cout << "number of bins needed for merge: " << number_bins_merged << endl;
+	cout << "current thread with min bin: " << thread_with_min_bin << endl;
+#endif       
+
       }
 
-      if (next_bin_index < local_bins.size()) {
-        size_t copy_start = fetch_and_add(next_frontier_tail,
-                                          local_bins[next_bin_index].size());
-        copy(local_bins[next_bin_index].begin(),
-             local_bins[next_bin_index].end(), frontier.data() + copy_start);
-        local_bins[next_bin_index].resize(0);
-      }
-      iter++;
+       // if the local bins needs to be merged, merge them and set a barrier to make sure the merge has completed
+      //merge if multiple bins are needed, or the single bin has a lot of elements inside
+      if(number_bins_merged > 1 || (number_bins_merged == 1 && next_frontier_tail > serial_size)){
+
+        if (next_bin_index < local_bins.size()) {
+          size_t copy_start = fetch_and_add(next_frontier_tail,
+					    local_bins[next_bin_index].size());
+	  copy(local_bins[next_bin_index].begin(),
+	       local_bins[next_bin_index].end(), frontier.data() + copy_start);
+	  local_bins[next_bin_index].resize(0);
+	} // end of if
+   
+	//make sure the copy into frontier operation has finished
+	//#pragma omp barrier
+      } //end of if number bins merged is greater than 1
+
       #pragma omp barrier
+	
+	iter++;
 
     }//end of while
     #pragma omp single

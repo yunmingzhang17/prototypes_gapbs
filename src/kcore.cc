@@ -14,12 +14,21 @@
 #include "graph.h"
 #include "pvector.h"
 
+#include <unordered_map>
+
+
 //#define DEBUG_ATOMICS
 #define TIME_ATOMICS
 //#define PRINT_CORES
 //#define PROFILE
 
+#define S_PROFILE
+
 using namespace std;
+
+#ifdef S_PROFILE
+unordered_map<NodeID, int> update_buffer;
+#endif
 
 
 template <class ET>

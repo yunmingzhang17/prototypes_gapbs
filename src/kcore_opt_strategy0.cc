@@ -203,7 +203,7 @@ NodeID* kcore_atomics (const Graph &g){
 	else {**/
 
 
-      #pragma omp for nowait schedule (dynamic, 64)
+      #pragma omp for nowait schedule (dynamic, 15)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin

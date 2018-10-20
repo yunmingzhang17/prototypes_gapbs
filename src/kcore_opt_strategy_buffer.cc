@@ -117,7 +117,7 @@ NodeID* kcore_atomics (const Graph &g){
     //vector<NodeID> update_keys;
 
 
-    #pragma omp for nowait schedule(dynamic, 64)
+    #pragma omp for nowait schedule(static, 64)
     for (NodeID i = 0; i < g.num_nodes(); i++){
       size_t dest_bin = degree[i];
       if (dest_bin >= local_bins.size()){
@@ -190,7 +190,7 @@ NodeID* kcore_atomics (const Graph &g){
 #endif
       
 
-      #pragma omp for nowait schedule (dynamic, 64)
+      #pragma omp for nowait schedule (dynamic, 10)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin

@@ -114,7 +114,7 @@ NodeID* kcore_atomics (const Graph &g){
 
 
     unordered_map<NodeID, int> update_buffer;
-    vector<NodeID> update_keys;
+    //vector<NodeID> update_keys;
 
 
     #pragma omp for nowait schedule(dynamic, 64)
@@ -177,7 +177,7 @@ NodeID* kcore_atomics (const Graph &g){
 
 
       update_buffer.clear();
-      update_keys.resize(0);
+      //update_keys.resize(0);
  
 #ifdef PROFILE     
       #pragma omp single
@@ -219,19 +219,19 @@ NodeID* kcore_atomics (const Graph &g){
 	      update_buffer[ngh] += -1;
 	    } else {
 	      update_buffer[ngh] = -1;
-	      update_keys.push_back(ngh);
+	      //update_keys.push_back(ngh);
 	    }
 	  }//end of if statement
 	} //end of inner for
       }//end of outer for
 
 
- //      for (unordered_map<NodeID, int>:: iterator itr = update_buffer.begin(); itr != update_buffer.end(); itr++) {
-    #pragma omp parallel for
-      for (int i = 0; i < update_keys.size(); i++){ 
+      for (unordered_map<NodeID, int>:: iterator itr = update_buffer.begin(); itr != update_buffer.end(); itr++) {
+      //    #pragma omp parallel for
+      //for (int i = 0; i < update_keys.size(); i++){ 
 	
-	NodeID node = update_keys[i];
-	int delta = update_buffer[node];
+	NodeID node = itr->first;
+	int delta = itr->second;
 	writeAdd(&degree[node],delta);
 	NodeID latest_degree = degree[node] > curr_bin_index ? degree[node]: curr_bin_index;
 	NodeID dest_bin = latest_degree;

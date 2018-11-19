@@ -48,10 +48,10 @@ inline bool CAS(ET *ptr, ET oldv, ET newv) {
 
 
 template <class ET>
-inline void writeAdd(ET *a, ET b) {
+inline void writeAdd(ET *a, ET b, size_t k) {
   volatile ET newV, oldV;
   do {oldV = *a; newV = oldV + b;}
-  while (!CAS(a, oldV, newV));
+  while (oldV > k && !CAS(a, oldV, newV));
 }
 
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
@@ -212,7 +212,7 @@ NodeID* kcore_atomics (const Graph &g){
 	else {**/
 
 
-      #pragma omp for nowait schedule (dynamic, 64)
+      #pragma omp for nowait schedule (dynamic, 15)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin
@@ -235,7 +235,7 @@ NodeID* kcore_atomics (const Graph &g){
 	    //update the degree of the neighbor
 	    // this value should be unique across threads, no duplicated vertices in the same bin
 	    //NodeID latest_degree = fetch_and_add(degree[ngh],-1) - 1;
-	    writeAdd(&degree[ngh],-1);
+    writeAdd(&degree[ngh],-1, k);
 	    NodeID latest_degree = degree[ngh];
 
 #ifdef DEBUG_ATOMICS
@@ -307,15 +307,17 @@ NodeID* kcore_atomics (const Graph &g){
   cout << "total exec time: " << total_t.Millisecs()/1000 << endl;
 
   int max_core = 0;
+  int sum_core = 0;
   for (NodeID i = 0; i < g.num_nodes(); i++){
     if (degree[i] > max_core) max_core = degree[i];
+    sum_core += degree[i];
 #ifdef PRINT_CORES
     cout << "Node " <<  i << " core: " <<  degree[i] << endl;
 #endif
   }
 
   cout << "max of core: " << max_core << endl;
-
+  cout << "sum of core: " << sum_core << endl;
   return degree;
 }
 

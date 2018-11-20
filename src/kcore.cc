@@ -21,14 +21,10 @@
 #define TIME_ATOMICS
 //#define PRINT_CORES
 //#define PROFILE
-
-#define S_PROFILE
+//#define SMALL_TIMER
 
 using namespace std;
 
-#ifdef S_PROFILE
-unordered_map<NodeID, int> update_buffer;
-#endif
 
 
 template <class ET>
@@ -92,6 +88,11 @@ NodeID* kcore_atomics (const Graph &g){
 
   Timer t;
   Timer total_t;
+
+#ifdef SMALL_TIMER
+  Timer small_timer;
+  size_t threshold = 200;
+#endif
 
   total_t.Start();
   
@@ -211,6 +212,13 @@ NodeID* kcore_atomics (const Graph &g){
 	}//end of the serial version 
 	else {**/
 
+#ifdef SMALL_TIMER
+      #pragma omp single
+      {
+      if (curr_frontier_tail < threshold)
+	small_timer.Start();
+      }
+#endif
 
       #pragma omp for schedule (dynamic, 15)
       for (size_t i = 0; i < curr_frontier_tail; i++){
@@ -300,6 +308,15 @@ NodeID* kcore_atomics (const Graph &g){
       iter++;
       #pragma omp barrier
 
+#ifdef SMALL_TIMER
+      #pragma omp single
+      {
+
+      if (curr_frontier_tail < threshold)
+	small_timer.Stop();
+      }
+#endif
+
     }//end of while
     #pragma omp single
     cout << "number of iter: " << iter << endl;
@@ -307,6 +324,10 @@ NodeID* kcore_atomics (const Graph &g){
   
   total_t.Stop();
   cout << "total exec time: " << total_t.Millisecs()/1000 << endl;
+
+#ifdef SMALL_TIMER
+  cout << "small exec time: " << small_timer.Millisecs()/1000 << endl;
+#endif
 
   int max_core = 0;
   int sum_core = 0;

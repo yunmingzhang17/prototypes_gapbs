@@ -212,7 +212,7 @@ NodeID* kcore_atomics (const Graph &g){
 	else {**/
 
 
-      #pragma omp for nowait schedule (dynamic, 15)
+      #pragma omp for schedule (dynamic, 15)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin
@@ -244,7 +244,7 @@ NodeID* kcore_atomics (const Graph &g){
 
 	    //if (latest_degree >= k){ //only update if it is more than the k degree
 	      //insert into the right bucket
-	    NodeID dest_bin = latest_degree > 0 ? latest_degree : 0;
+	    NodeID dest_bin = latest_degree;
 	      if (dest_bin >= local_bins.size()){
 		local_bins.resize(dest_bin+1);
 	      }
@@ -256,6 +256,8 @@ NodeID* kcore_atomics (const Graph &g){
 	  //}//end of if statement
         } //end of inner for
       }//end of outer for
+
+      //#pragma omp barrier
 
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;

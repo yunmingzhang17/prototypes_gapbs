@@ -23,6 +23,8 @@
 //#define PROFILE
 //#define SMALL_TIMER
 
+size_t grain_size = 15;
+
 using namespace std;
 
 
@@ -115,7 +117,7 @@ NodeID* kcore_atomics (const Graph &g){
     //doing a first pass to put every node into the right initial bin
     vector<vector<NodeID>> local_bins(1);
 
-    #pragma omp for nowait schedule(dynamic, 64)
+    #pragma omp for nowait schedule(dynamic, grain_size)
     for (NodeID i = 0; i < g.num_nodes(); i++){
       size_t dest_bin = degree[i];
       if (dest_bin >= local_bins.size()){
@@ -220,7 +222,7 @@ NodeID* kcore_atomics (const Graph &g){
       }
 #endif
 
-      #pragma omp for schedule (dynamic, 15)
+      #pragma omp for schedule (dynamic, grain_size)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin

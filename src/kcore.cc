@@ -21,7 +21,9 @@
 #define TIME_ATOMICS
 //#define PRINT_CORES
 //#define PROFILE
-//#define SMALL_TIMER
+#define SMALL_TIMER
+
+#define PHASE_TIMER
 
 size_t grain_size = 15;
 
@@ -96,6 +98,12 @@ NodeID* kcore_atomics (const Graph &g){
   size_t threshold = 200;
 #endif
 
+#ifdef PHASE_TIMER
+  Timer initial_bin_setup_timer;
+  Timer degree_update_phase_timer;
+  Timer find_smallest_bin_phase_timer;
+#endif
+
   total_t.Start();
   
   //t.Start();
@@ -116,6 +124,10 @@ NodeID* kcore_atomics (const Graph &g){
 
     //doing a first pass to put every node into the right initial bin
     vector<vector<NodeID>> local_bins(1);
+
+#ifdef PHASE_TIMER
+    initial_bin_setup_timer.Start();
+#endif
 
     #pragma omp for nowait schedule(dynamic, grain_size)
     for (NodeID i = 0; i < g.num_nodes(); i++){
@@ -215,11 +227,19 @@ NodeID* kcore_atomics (const Graph &g){
 	else {**/
 
 #ifdef SMALL_TIMER
-      #pragma omp single
-      {
-      if (curr_frontier_tail < threshold)
+  #pragma omp single 
+  {
+      if ( curr_frontier_tail < threshold)
 	small_timer.Start();
-      }
+  }
+#endif
+
+#ifdef PHASE_TIMER
+  #pragma omp single 
+  {
+    initial_bin_setup_timer.Stop();
+     degree_update_phase_timer.Start();
+  }
 #endif
 
       #pragma omp for schedule (dynamic, grain_size)
@@ -267,7 +287,13 @@ NodeID* kcore_atomics (const Graph &g){
         } //end of inner for
       }//end of outer for
 
-      //#pragma omp barrier
+#ifdef PHASE_TIMER
+      #pragma omp single 
+      {
+        degree_update_phase_timer.Stop();
+	find_smallest_bin_phase_timer.Start();
+      }
+#endif
 
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;
@@ -311,11 +337,17 @@ NodeID* kcore_atomics (const Graph &g){
       #pragma omp barrier
 
 #ifdef SMALL_TIMER
-      #pragma omp single
-      {
-
+     #pragma omp single 
+     {
       if (curr_frontier_tail < threshold)
 	small_timer.Stop();
+     }
+#endif
+
+#ifdef PHASE_TIMER
+     #pragma omp single 
+     {
+        find_smallest_bin_phase_timer.Stop();
       }
 #endif
 
@@ -329,6 +361,12 @@ NodeID* kcore_atomics (const Graph &g){
 
 #ifdef SMALL_TIMER
   cout << "small exec time: " << small_timer.Millisecs()/1000 << endl;
+#endif
+
+#ifdef PHASE_TIMER
+cout << " initial bin setup time: " << initial_bin_setup_timer.Millisecs()/1000 << endl;
+cout << " degree update time: " << degree_update_phase_timer.Millisecs()/1000 << endl;
+cout << " find next bin time: " <<   find_smallest_bin_phase_timer.Millisecs()/1000 <<endl;
 #endif
 
   int max_core = 0;

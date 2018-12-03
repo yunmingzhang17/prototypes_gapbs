@@ -148,7 +148,7 @@ NodeID* kcore_atomics (const Graph &g){
     int local_num_processed_vertices;
 
 
-    #pragma omp for  schedule(dynamic, setup_grain_size)
+    #pragma omp for   schedule(dynamic, setup_grain_size)
     for (NodeID i = 0; i < g.num_nodes(); i++){
       size_t dest_bin = degree[i];
       //if (dest_bin < min_degree_threshold){
@@ -246,7 +246,7 @@ NodeID* kcore_atomics (const Graph &g){
   }
 #endif
 
-      #pragma omp for schedule (dynamic, update_degree_grain_size)
+      #pragma omp for nowait schedule (dynamic, update_degree_grain_size)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin
@@ -294,6 +294,13 @@ NodeID* kcore_atomics (const Graph &g){
         } //end of inner for
       }//end of outer for
 
+
+     // keeping track of number of processed vertices
+      writeAdd(&num_processed_vertices, local_num_processed_vertices);
+
+#pragma omp barrier
+
+
 #ifdef PHASE_TIMER
       #pragma omp single 
       {
@@ -304,7 +311,7 @@ NodeID* kcore_atomics (const Graph &g){
 #endif
 
       if (num_processed_vertices == g.num_nodes()){
-         cout << " early break! " << endl;
+	//cout << " early break! " << endl;
          break;
       }
 
@@ -364,8 +371,7 @@ NodeID* kcore_atomics (const Graph &g){
       }
       iter++;
 
-      // keeping track of number of processed vertices
-      writeAdd(&num_processed_vertices, local_num_processed_vertices);
+ 
 
       #pragma omp barrier
 

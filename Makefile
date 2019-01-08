@@ -1,5 +1,5 @@
 # See LICENSE.txt for license details.
-CXX=g++-5.4
+CXX=icpc
 
 INCLUDE_DIR=./include/
 
@@ -19,7 +19,7 @@ CXX_FLAGS += -DPROFILE
 endif
 
 ifneq (,$(findstring icpc,$(CXX)))
-	PAR_FLAG = -openmp
+	PAR_FLAG = -qopenmp
 endif
 
 ifneq (,$(findstring sunCC,$(CXX)))

@@ -47,13 +47,6 @@ inline bool CAS(ET *ptr, ET oldv, ET newv) {
   }
 }
 
-template <class ET>
-inline void writeAdd(ET *a, ET b) {
-  volatile ET newV, oldV;
-  do {oldV = *a; newV = oldV + b;}
-  while (!CAS(a, oldV, newV));
-}
-
 
 template <class ET>
 inline void writeAdd(ET *a, ET b, size_t k) {
@@ -124,8 +117,6 @@ NodeID* kcore_atomics (const Graph &g){
   size_t shared_indexes[2] = {0, kMaxBin};
   size_t frontier_tails[2] = {0, 0};
   size_t first_frontier_tail = 0;
-  int num_processed_vertices = 0;
-
   //set up a boolean vector to keep track wether each vertex has been processed already
 
 #ifdef PHASE_TIMER 
@@ -135,7 +126,7 @@ NodeID* kcore_atomics (const Graph &g){
     }
 #endif
 
-    pvector<bool> processed(g.num_nodes(), false);
+  pvector<bool> processed(g.num_nodes(), false);
 
   size_t start_bin_index = kMaxBin;
   
@@ -145,10 +136,10 @@ NodeID* kcore_atomics (const Graph &g){
 
     //doing a first pass to put every node into the right initial bin
     vector<vector<NodeID>> local_bins(1);
-    int local_num_processed_vertices;
 
 
-    #pragma omp for   schedule(dynamic, setup_grain_size)
+
+    #pragma omp for nowait schedule(dynamic, setup_grain_size)
     for (NodeID i = 0; i < g.num_nodes(); i++){
       size_t dest_bin = degree[i];
       //if (dest_bin < min_degree_threshold){
@@ -176,16 +167,12 @@ NodeID* kcore_atomics (const Graph &g){
     }// end of for loop to find the smallest bin index
 
     #pragma omp barrier 
-
-    //cout << "start bin index: " << start_bin_index << endl;
     
     size_t copy_start = fetch_and_add(first_frontier_tail, 
 				      local_bins[start_bin_index].size());
     copy(local_bins[start_bin_index].begin(), local_bins[start_bin_index].end(), frontier.data() + copy_start);
     //release the  bin after being copied
     local_bins[start_bin_index].resize(0);    
-
-#pragma omp barrier 
 
 #ifdef DEBUG_ATOMICS
     cout << "start bin index: " << start_bin_index << endl;
@@ -216,10 +203,6 @@ NodeID* kcore_atomics (const Graph &g){
       size_t &curr_frontier_tail = frontier_tails[iter&1];
       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
       size_t k = curr_bin_index;
-      local_num_processed_vertices = 0;
-
-
-      
  
 #ifdef PROFILE     
       #pragma omp single
@@ -231,6 +214,34 @@ NodeID* kcore_atomics (const Graph &g){
       }
 #endif
       
+     /** if (curr_frontier_tail < 100){
+	#pragma omp single 
+	{
+
+	  for (size_t i = 0; i < curr_frontier_tail; i++){
+	    NodeID u = frontier[i];
+	    // if the node is already processed in an earlier bin
+	    // then skip the current node
+	    if (processed[u]) continue;
+	    // set the node to be processed after this round (removed)
+	    else processed[u] = true;
+	    for (NodeID ngh : g.out_neigh(u)){
+	      if (degree[ngh] > k) {
+		//update the degree of the neighbor
+		// this value should be unique across threads, no duplicated vertices in the same bin
+		size_t latest_degree = degree[ngh] - 1;
+		//insert into the right bucket
+		size_t dest_bin = latest_degree;
+		if (dest_bin >= local_bins.size()){
+		  local_bins.resize(dest_bin+1);
+		}
+		local_bins[dest_bin].push_back(ngh);
+	      }//end of if degree[ngh] > k
+	    }//end of inner for
+	  }//end of outer for
+	}//end of pragma omp si 
+	}//end of the serial version 
+	else {**/
 
 #ifdef SMALL_TIMER
   #pragma omp single 
@@ -246,17 +257,14 @@ NodeID* kcore_atomics (const Graph &g){
   }
 #endif
 
-      #pragma omp for nowait schedule (dynamic, update_degree_grain_size)
+      #pragma omp for schedule (dynamic, update_degree_grain_size)
       for (size_t i = 0; i < curr_frontier_tail; i++){
         NodeID u = frontier[i];
 	// if the node is already processed in an earlier bin
 	// then skip the current node
 	if (processed[u]) continue;
 	// set the node to be processed after this round (removed)
-	else {
-	  processed[u] = true;
-	  local_num_processed_vertices++;
-	}
+	else processed[u] = true;
 
 #ifdef DEBUG_ATOMICS
 	cout << "current node: " << u << endl;
@@ -272,7 +280,7 @@ NodeID* kcore_atomics (const Graph &g){
 	    //update the degree of the neighbor
 	    // this value should be unique across threads, no duplicated vertices in the same bin
 	    //NodeID latest_degree = fetch_and_add(degree[ngh],-1) - 1;
-	    writeAdd(&degree[ngh],-1, k);
+    writeAdd(&degree[ngh],-1, k);
 	    NodeID latest_degree = degree[ngh];
 
 #ifdef DEBUG_ATOMICS
@@ -294,13 +302,6 @@ NodeID* kcore_atomics (const Graph &g){
         } //end of inner for
       }//end of outer for
 
-
-     // keeping track of number of processed vertices
-      writeAdd(&num_processed_vertices, local_num_processed_vertices);
-
-#pragma omp barrier
-
-
 #ifdef PHASE_TIMER
       #pragma omp single 
       {
@@ -309,11 +310,6 @@ NodeID* kcore_atomics (const Graph &g){
 	find_smallest_bin_phase_timer.Start();
       }
 #endif
-
-      if (num_processed_vertices == g.num_nodes()){
-	//cout << " early break! " << endl;
-         break;
-      }
 
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;
@@ -362,17 +358,11 @@ NodeID* kcore_atomics (const Graph &g){
       if (next_bin_index < local_bins.size()) {
         size_t copy_start = fetch_and_add(next_frontier_tail,
                                           local_bins[next_bin_index].size());
-
-	
-
         copy(local_bins[next_bin_index].begin(),
              local_bins[next_bin_index].end(), frontier.data() + copy_start);
         local_bins[next_bin_index].resize(0);
       }
       iter++;
-
- 
-
       #pragma omp barrier
 
 #ifdef PHASE_TIMER
@@ -411,7 +401,6 @@ cout << " find next bin time: " << total_find_smallest_bin_time   <<endl;
 #endif
   }
 
-  cout << " num processed: " << num_processed_vertices << endl;      
   cout << "max of core: " << max_core << endl;
   cout << "sum of core: " << sum_core << endl;
   return degree;

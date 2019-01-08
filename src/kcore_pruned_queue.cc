@@ -64,11 +64,16 @@ inline void writeAdd(ET *a, ET b, size_t k) {
 
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-bool has_unprocessed(vector<NodeID> bin, pvector<bool> &processed){
-  for (NodeID i : bin){
-    if (processed[i] == false) return true;
+int has_unprocessed(vector<NodeID> &bin, pvector<bool> &processed){
+  int unprocessed_tail = 0;
+  for (int i = 0; i < bin.size(); i++){
+    NodeID node = bin[i];
+    if (processed[node] == false){
+      bin[unprocessed_tail] = node;
+      unprocessed_tail++;
+    }
   }
-  return false;
+  return unprocessed_tail;
 }
 
 NodeID* kcore_atomics (const Graph &g){
@@ -315,20 +320,23 @@ NodeID* kcore_atomics (const Graph &g){
          break;
       }
 
+      int local_min_bin_size = 0;
+      int local_min_bin_index = 0;
       for (size_t i = curr_bin_index; i < local_bins.size(); i++){
       //cout << "index: " << i << endl;
       //	cout << "next bin index: " << next_bin_index << endl;
-	if (!local_bins[i].empty() && has_unprocessed(local_bins[i], processed)){
-	  #pragma omp critical
-	  {
 
-    //#ifdef PROFILE
-	   
-	   //#endif
-	   next_bin_index = min(next_bin_index, i);
-	  }
-	  break;
-	}
+        if (!local_bins[i].empty()){
+	    local_min_bin_size = has_unprocessed(local_bins[i], processed);
+	    local_min_bin_index = i;
+            if(local_min_bin_size != 0){
+	      #pragma omp critical
+	      {
+	       next_bin_index = min(next_bin_index, i);
+	      }
+	      break;
+	    } //unprocessed count check
+       } //nonempty bin check
       }// end of for loop to find the next bin index
 
 
@@ -359,14 +367,21 @@ NodeID* kcore_atomics (const Graph &g){
         curr_frontier_tail = 0;
       }
 
-      if (next_bin_index < local_bins.size()) {
-        size_t copy_start = fetch_and_add(next_frontier_tail,
-                                          local_bins[next_bin_index].size());
+      if (next_bin_index < local_bins.size() && local_min_bin_index == next_bin_index) {
 
+	 size_t copy_start = fetch_and_add(next_frontier_tail, local_min_bin_size);
 	
+	 copy(local_bins[next_bin_index].begin(),local_bins[next_bin_index].begin() + local_min_bin_size, frontier.data() + copy_start);
 
-        copy(local_bins[next_bin_index].begin(),
-             local_bins[next_bin_index].end(), frontier.data() + copy_start);
+	//for (int i = 0; i < local_min_bin_size; i++){
+	//       frontier.data()[copy_start+i] = local_bins[next_bin_index][i];
+	// }
+
+        //size_t copy_start = fetch_and_add(next_frontier_tail,local_bins[next_bin_index].size());
+
+      //copy(local_bins[next_bin_index].begin(),local_bins[next_bin_index].end(), frontier.data() + copy_start);
+	//copy(local_bins[next_bin_index].begin(), local_bins[next_bin_index].begin() + local_bins[next_bin_index].size(), frontier.data() + copy_start);
+
         local_bins[next_bin_index].resize(0);
       }
       iter++;

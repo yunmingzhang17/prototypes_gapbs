@@ -31,7 +31,7 @@ using namespace std;
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, WeightT delta) {
+pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, WeightT delta) {
   Timer t;
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
   dist[source] = 0;
@@ -118,7 +118,7 @@ void PrintSSSPStats(const WGraph &g, const pvector<WeightT> &dist) {
 
 
 // Compares against simple serial implementation
-bool SSSPVerifier(const WGraph &g, NodeID source,
+bool SSSPVerifier(const WGraph &g, NodeID source, NodeID dest, 
                   const pvector<WeightT> &dist_to_test) {
   // Serial Dijkstra implementation to get oracle distances
   pvector<WeightT> oracle_dist(g.num_nodes(), kDistInf);
@@ -139,31 +139,38 @@ bool SSSPVerifier(const WGraph &g, NodeID source,
       }
     }
   }
+
+
   // Report any mismatches
-  bool all_ok = true;
-  for (NodeID n : g.vertices()) {
-    if (dist_to_test[n] != oracle_dist[n]) {
-      cout << n << ": " << dist_to_test[n] << " != " << oracle_dist[n] << endl;
-      all_ok = false;
-    }
-  }
+  //bool all_ok = true;
+  //for (NodeID n : g.vertices()) {
+  //if (dist_to_test[n] != oracle_dist[n]) {
+  //    cout << n << ": " << dist_to_test[n] << " != " << oracle_dist[n] << endl;
+  //    all_ok = false;
+  //  }
+  //}
+
+  bool all_ok = false;
+  if (dist_to_test[dest] == oracle_dist[dest]) all_ok = true;
+  
   return all_ok;
 }
 
 
 int main(int argc, char* argv[]) {
-  CLDelta<WeightT> cli(argc, argv, "single-source shortest-path");
+  CLDelta<WeightT> cli(argc, argv, "point-to-point shortest-path");
   if (!cli.ParseArgs())
     return -1;
   WeightedBuilder b(cli);
   WGraph g = b.MakeGraph();
   SourcePicker<WGraph> sp(g, cli.start_vertex());
   auto SSSPBound = [&sp, &cli] (const WGraph &g) {
-    return PPDeltaStep(g, sp.PickNext(), cli.delta());
+    // here we call the source picker two times, first for the source, then for the destination
+    return PPDeltaStep(g, sp.PickNext(), sp.PickNext(),  cli.delta());
   };
   SourcePicker<WGraph> vsp(g, cli.start_vertex());
   auto VerifierBound = [&vsp] (const WGraph &g, const pvector<WeightT> &dist) {
-    return SSSPVerifier(g, vsp.PickNext(), dist);
+    return SSSPVerifier(g, vsp.PickNext(), vsp.PickNext(), dist);
   };
   BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
   return 0;

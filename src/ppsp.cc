@@ -53,6 +53,12 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
+
+	//prune this point if it is not going to reach destination
+	//it is possible that this point's distance would be reduced later
+	//then it should be processed at a later time
+	if (dist[u] > dist[dest]) continue;
+
         if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
           for (WNode wn : g.out_neigh(u)) {
             WeightT old_dist = dist[wn.v];

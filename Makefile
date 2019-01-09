@@ -1,5 +1,5 @@
 # See LICENSE.txt for license details.
-CXX=icpc
+CXX=
 
 INCLUDE_DIR=./include/
 
@@ -34,7 +34,7 @@ endif
 
 CXX_FLAGS += -I ${INCLUDE_DIR}
 
-KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec cc_sv kcore
+KERNELS = bc bfs cc pr sssp tc tc_migra multi_hop_simple_rec cc_sv kcore ppsp
 SUITE = $(KERNELS) converter
 
 .PHONY: all

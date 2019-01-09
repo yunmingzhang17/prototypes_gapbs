@@ -85,6 +85,24 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
         }
       }
       #pragma omp barrier
+      
+      //if next_bin_index is different from current_bin_index
+      if (next_bin_index > curr_bin_index){
+	// if the node is already processed
+	if (dist[dest]/delta < curr_bin_index) {
+	  
+	  #ifdef DEBUG_RESULT
+	  cout << "src: " << source << endl;
+	  cout << "dest: " << dest << endl;
+	  cout << "current bin index: " << curr_bin_index << endl;
+	  cout << "next bin index: " << next_bin_index << endl;
+	  cout << "dest distance: " << dist[dest] << endl;
+	  #endif
+
+	  break;
+	}
+      }
+
       #pragma omp single nowait
       {
         t.Stop();
@@ -152,6 +170,10 @@ bool SSSPVerifier(const WGraph &g, NodeID source, NodeID dest,
 
   bool all_ok = false;
   if (dist_to_test[dest] == oracle_dist[dest]) all_ok = true;
+  else {
+    cout << "measured dist: " << dist_to_test[dest] << endl;
+    cout << "oracle dist: " << oracle_dist[dest] << endl;
+  }
   
   return all_ok;
 }

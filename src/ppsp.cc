@@ -95,7 +95,7 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
       //if next_bin_index is different from current_bin_index
       if (next_bin_index > curr_bin_index){
 	// if the node is already processed
-	if (dist[dest]/delta < curr_bin_index) {
+	if (dist[dest]/delta < next_bin_index) {
 	  
 	  #ifdef DEBUG_RESULT
 	  cout << "src: " << source << endl;

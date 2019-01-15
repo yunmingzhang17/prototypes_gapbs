@@ -189,7 +189,10 @@ int main(int argc, char* argv[]) {
   auto VerifierBound = [&vsp] (const WGraph &g, const pvector<WeightT> &dist) {
     return SSSPVerifier(g, vsp.PickNext(), dist);
   };
-  BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
+
+  int num_trails = 3;
+  for (int i = 0; i < num_trails; i++)
+    BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
 
 
   cout << "starting node: " << starting_node << endl;

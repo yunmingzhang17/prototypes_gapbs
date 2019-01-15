@@ -52,8 +52,14 @@ using namespace std;
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
+
+
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
+
+#ifdef STEP_TIME
   Timer t;
+#endif
+
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
   dist[source] = 0;
   pvector<NodeID> frontier(g.num_edges_directed());
@@ -61,7 +67,10 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   size_t shared_indexes[2] = {0, kMaxBin};
   size_t frontier_tails[2] = {1, 0};
   frontier[0] = source;
+#ifdef STEP_TIME
   t.Start();
+#endif
+
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
@@ -108,9 +117,13 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       #pragma omp barrier
       #pragma omp single nowait
       {
+
+      #ifdef STEP_TIME
         t.Stop();
         PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
         t.Start();
+      #endif
+
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
       }

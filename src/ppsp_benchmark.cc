@@ -40,7 +40,7 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
   size_t shared_indexes[2] = {0, kMaxBin};
   size_t frontier_tails[2] = {1, 0};
   frontier[0] = source;
-  t.Start();
+  //t.Start();
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
@@ -111,9 +111,9 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
 
       #pragma omp single nowait
       {
-        t.Stop();
-        PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
-        t.Start();
+      //t.Stop();
+      // PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
+      //  t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
       }
@@ -192,7 +192,6 @@ int main(int argc, char* argv[]) {
   WeightedBuilder b(cli);
   WGraph g = b.MakeGraph();
 
-#define ORIG
 #ifdef ORIG
 
   SourcePicker<WGraph> sp(g, cli.start_vertex());
@@ -214,10 +213,14 @@ int main(int argc, char* argv[]) {
     return SSSPVerifier(g, cli.start_vertex(), cli.dst_vertex(), dist);
   };
 
-  for (int i = 0; i < 3; i++)
+  int num_trails = 3;
+  for (int i = 0; i < num_trails; i++)
     BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
 
 #endif
+
+  cout << "starting point: " << cli.start_vertex() << endl;
+  cout << "ending point: " << cli.dst_vertex() << endl;
 
   return 0;
 }

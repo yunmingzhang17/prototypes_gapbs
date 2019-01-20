@@ -53,6 +53,10 @@ const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
 
+#define TIMER
+
+
+
 
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
 
@@ -71,6 +75,14 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   t.Start();
 #endif
 
+
+#ifdef TIMER
+  Timer update_timer;
+  Timer bucket_timer;
+  double total_update_time = 0;
+  double total_bucket_time = 0;
+#endif
+
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
@@ -80,6 +92,14 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       size_t &next_bin_index = shared_indexes[(iter+1)&1];
       size_t &curr_frontier_tail = frontier_tails[iter&1];
       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
+
+#ifdef TIMER
+    #pragma omp single
+      {
+        update_timer.Start();
+      }
+#endif
+
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
@@ -106,7 +126,20 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
             }
           }
         }
+      } // end of curr_frontier_tail loop
+
+
+#ifdef TIMER
+
+#pragma omp single
+      {
+        update_timer.Stop();
+        total_update_time += update_timer.Seconds();
+	bucket_timer.Start();
       }
+
+#endif
+
       for (size_t i=curr_bin_index; i < local_bins.size(); i++) {
         if (!local_bins[i].empty()) {
           #pragma omp critical
@@ -136,10 +169,27 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       }
       iter++;
       #pragma omp barrier
+
+#ifdef TIMER
+      #pragma omp single
+      {
+      bucket_timer.Stop();
+      total_bucket_time += bucket_timer.Seconds();
+      
+      }
+#endif
+
     }
     #pragma omp single
     cout << "took " << iter << " iterations" << endl;
-  }
+    }//en of pragma omp parallel
+
+#ifdef TIMER
+  cout << "total update time: " << total_update_time << endl;
+  cout << "total bucket time: " << total_bucket_time << endl;
+#endif
+
+
   return dist;
 }
 

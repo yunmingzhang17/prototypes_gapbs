@@ -34,7 +34,7 @@ endif
 
 CXX_FLAGS += -I ${INCLUDE_DIR}
 
-KERNELS = bc bfs cc pr sssp sssp_benchmark tc tc_migra multi_hop_simple_rec cc_sv kcore ppsp
+KERNELS = bc bfs cc pr sssp sssp_benchmark tc tc_migra multi_hop_simple_rec cc_sv kcore ppsp ppsp_benchmark
 SUITE = $(KERNELS) converter
 
 .PHONY: all

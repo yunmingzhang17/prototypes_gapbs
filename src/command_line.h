@@ -26,7 +26,8 @@ Handles command line argument parsing
 
 
 class CLBase {
- protected:
+  protected:
+  //public:
   int argc_;
   char** argv_;
   std::string name_;
@@ -217,6 +218,30 @@ class CLDelta : public CLApp {
   }
 
   WeightT_ delta() const { return delta_; }
+};
+
+template<typename WeightT_>
+class CLPPSP : public CLDelta<WeightT_> {
+  int64_t dst_vertex_ = 0;
+
+ public:
+ CLPPSP(int argc, char** argv, std::string name) : CLDelta<WeightT_>(argc, argv, name) {
+   //CLDelta<WeightT_>::get_args_ += "u:";
+   //CLDelta<WeightT_>::AddHelpLine('u', "u", "destination vertex", std::to_string(dst_vertex_));
+
+    this->get_args_ += "u:";
+    this->AddHelpLine('u', "u", "destination vertex", std::to_string(dst_vertex_));
+
+  }
+
+  void HandleArg(signed char opt, char* opt_arg) override {
+    switch (opt) {
+      case 'u': dst_vertex_ = atol(opt_arg);          break;
+      default: CLDelta<WeightT_>::HandleArg(opt, opt_arg);
+    }
+  }
+
+  int64_t dst_vertex() const { return dst_vertex_; }
 };
 
 

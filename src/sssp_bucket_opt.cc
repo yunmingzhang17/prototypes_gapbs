@@ -51,10 +51,11 @@ using namespace std;
 
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
-const size_t bin_size_threshold = 100;
+const size_t bin_size_threshold = 500;
 
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   Timer t;
+  cout << "source node: " << source << endl;
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
   dist[source] = 0;
   pvector<NodeID> frontier(g.num_edges_directed());
@@ -62,7 +63,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   size_t shared_indexes[2] = {0, kMaxBin};
   size_t frontier_tails[2] = {1, 0};
   frontier[0] = source;
-  t.Start();
+  //t.Start();
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
@@ -159,9 +160,9 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       #pragma omp barrier
       #pragma omp single nowait
       {
-        t.Stop();
-        PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
-        t.Start();
+      //t.Stop();
+      //  PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
+      //  t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
       }
@@ -240,7 +241,14 @@ int main(int argc, char* argv[]) {
   auto VerifierBound = [&vsp] (const WGraph &g, const pvector<WeightT> &dist) {
     return SSSPVerifier(g, vsp.PickNext(), dist);
   };
-  BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
+
+
+  if (starting_node == -1)
+    BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
+  else {
+    for (int trail = 0; trail <3; trail++)
+      BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
+  }
 
 
   cout << "starting node: " << starting_node << endl;

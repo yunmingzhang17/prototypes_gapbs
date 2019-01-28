@@ -52,6 +52,7 @@ using namespace std;
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 const size_t bin_size_threshold = 1000;
+const size_t copy_over_bin_size_threshold = 300;
 
 //#define TIMER
 
@@ -174,11 +175,49 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
         curr_frontier_tail = 0;
       }
       if (next_bin_index < local_bins.size()) {
-        size_t copy_start = fetch_and_add(next_frontier_tail,
+        if (local_bins[next_bin_index].size() > copy_over_bin_size_threshold){
+          size_t copy_start = fetch_and_add(next_frontier_tail,
                                           local_bins[next_bin_index].size());
-        copy(local_bins[next_bin_index].begin(),
+          copy(local_bins[next_bin_index].begin(),
              local_bins[next_bin_index].end(), frontier.data() + copy_start);
-        local_bins[next_bin_index].resize(0);
+          local_bins[next_bin_index].resize(0);
+        } else {
+          //this allows priority inversion when the size is less than threshold
+	  //cout << "less than threshold" << endl;
+
+      	  int next_next_bin_index = next_bin_index+1;
+	  while(next_next_bin_index < local_bins.size()){
+            if (local_bins[next_next_bin_index].size() > 0) { break;}
+            next_next_bin_index += 1;
+          }
+
+
+      //check if there is a next bin before we try to merge the next bin with this bin
+        if (next_next_bin_index < local_bins.size()){
+	  //cout << "doing a merge" << endl;
+
+	  size_t merged_bin_size = local_bins[next_bin_index].size() + local_bins[next_next_bin_index].size();
+	  size_t copy_start = fetch_and_add(next_frontier_tail, merged_bin_size);
+          copy(local_bins[next_bin_index].begin(),
+             local_bins[next_bin_index].end(), frontier.data() + copy_start);
+
+	  copy(local_bins[next_next_bin_index].begin(),
+	       local_bins[next_next_bin_index].end(), frontier.data() + copy_start + local_bins[next_bin_index].size());
+
+          local_bins[next_bin_index].resize(0);
+	  local_bins[next_next_bin_index].resize(0);
+    } else {
+      // no next bin to copy, just copy the original bin content
+      size_t copy_start = fetch_and_add(next_frontier_tail,
+                                          local_bins[next_bin_index].size());
+          copy(local_bins[next_bin_index].begin(),
+             local_bins[next_bin_index].end(), frontier.data() + copy_start);
+          local_bins[next_bin_index].resize(0);
+      
+    }
+
+        } //end of else bin size smaller than the threshold
+
       }
       iter++;
       #pragma omp barrier

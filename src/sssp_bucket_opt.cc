@@ -253,7 +253,7 @@ int main(int argc, char* argv[]) {
   if (starting_node == -1)
     BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
   else {
-    for (int trail = 0; trail <3; trail++)
+    for (int trail = 0; trail <6; trail++)
       BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
   }
 

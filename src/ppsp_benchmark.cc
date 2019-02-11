@@ -213,7 +213,7 @@ int main(int argc, char* argv[]) {
     return SSSPVerifier(g, cli.start_vertex(), cli.dst_vertex(), dist);
   };
 
-  int num_trails = 3;
+  int num_trails = 6;
   for (int i = 0; i < num_trails; i++)
     BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
 

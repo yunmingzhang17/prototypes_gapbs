@@ -12,7 +12,8 @@
 
 #include "pvector.h"
 #include "util.h"
-
+#include "segmentgraph.h"
+#include <map>
 
 /*
 GAP Benchmark Suite
@@ -231,6 +232,42 @@ class CSRGraph {
     }
   }
 
+  void buildPushSegmentedGraphs(std::string label, int numSegments, bool numa_aware=false, bool weighted=false, std::string path="") {
+    auto graphSegments = new GraphSegments<DestID_,NodeID_>(numSegments, numa_aware);
+    label_to_segment[label] = graphSegments;
+
+    int segmentRange = (num_nodes() + numSegments - 1) / numSegments;
+    //Go through the original graph and count the number of target vertices and edges for each segment
+
+    for (auto s : vertices()){
+      for (auto d : out_neigh(s)){
+	int segment_id;
+	if (weighted)
+	  segment_id = d.v/segmentRange;
+	else
+	  segment_id = d/segmentRange;
+	graphSegments->getSegmentedGraph(segment_id)->countEdge(s);
+      }
+    }
+
+    //Allocate each segment
+    graphSegments->allocate();
+
+    //Add the edges for each segment
+    for (auto s : vertices()){
+      for (auto d : out_neigh(s)){
+	int segment_id;
+	if (weighted)
+	  segment_id = d.v/segmentRange;
+	else
+	  segment_id = d/segmentRange;
+	graphSegments->getSegmentedGraph(segment_id)->addEdge(s, d);
+      }
+    }
+  }
+
+
+
   static DestID_** GenIndex(const pvector<SGOffset> &offsets, DestID_* neighs) {
     NodeID_ length = offsets.size();
     DestID_** index = new DestID_*[length];
@@ -262,6 +299,8 @@ class CSRGraph {
   DestID_*  out_neighbors_;
   DestID_** in_index_;
   DestID_*  in_neighbors_;
+  std::map<std::string, GraphSegments<DestID_,NodeID_>*> label_to_segment;
+
 };
 
 #endif  // GRAPH_H_

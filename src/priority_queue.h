@@ -40,7 +40,12 @@ public:
   }
   
   bool finished() {
-
+    if (!use_lazy_bucket_){
+      return get_current_priority() != kMaxBin;
+    } else {
+      //not yet implemented
+      return true;
+    }
   }
 
   void updatePriorityMin(NodeID dst, PriorityT_ new_p, PriorityT_ old_p){

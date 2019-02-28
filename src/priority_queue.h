@@ -15,6 +15,8 @@ class PriorityQueue {
 public:
   explicit PriorityQueue(bool use_lazy_bucket, PriorityT_* priorities) {
     priorities_ = priorities;
+    use_lazy_bucket_ = use_lazy_bucket;
+    iter_ = 0;
   }
 
   // set up shared_indexes, iter and frontier_tails data structures
@@ -51,6 +53,7 @@ public:
 
   size_t shared_indexes[2];
   size_t frontier_tails[2];
-  size_t iter_ = 0;
+  size_t iter_;;
+  bool use_lazy_bucket_;
 
 };

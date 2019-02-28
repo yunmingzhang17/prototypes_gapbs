@@ -58,15 +58,21 @@ WeightT* dist_array;
 
 
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
-  // Timer t;
+  Timer t;
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
-  dist[source] = 0;
+
+  //resetng the distances
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist_array[i] = kDistInf;
+  }
+
+  dist_array[source] = 0;
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
   size_t shared_indexes[2] = {0, kMaxBin};
   size_t frontier_tails[2] = {1, 0};
   frontier[0] = source;
-  //t.Start();
+  t.Start();
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
@@ -79,14 +85,14 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
-        if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
+        if (dist_array[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
           for (WNode wn : g.out_neigh(u)) {
-            WeightT old_dist = dist[wn.v];
-            WeightT new_dist = dist[u] + wn.w;
+            WeightT old_dist = dist_array[wn.v];
+            WeightT new_dist = dist_array[u] + wn.w;
             if (new_dist < old_dist) {
               bool changed_dist = true;
-              while (!compare_and_swap(dist[wn.v], old_dist, new_dist)) {
-                old_dist = dist[wn.v];
+              while (!compare_and_swap(dist_array[wn.v], old_dist, new_dist)) {
+                old_dist = dist_array[wn.v];
                 if (old_dist <= new_dist) {
                   changed_dist = false;
                   break;
@@ -131,7 +137,15 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
     }
     #pragma omp single
     cout << "took " << iter << " iterations" << endl;
-  }
+  }//end of pragma omp parallel 
+
+  t.Stop();
+  cout << "DeltaStep took: " << t.Seconds() << endl;
+  
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist[i] = dist_array[i];
+  }  
+
   return dist;
 }
 
@@ -187,7 +201,12 @@ int main(int argc, char* argv[]) {
   NodeID starting_node = cli.start_vertex();
   SourcePicker<WGraph> sp(g, starting_node);
 
+  dist_array = new WeightT[g.num_nodes()];
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist_array[i] = kDistInf;
+  }
   pq = new PriorityQueue<WeightT>(false, dist_array);
+  
 
   auto SSSPBound = [&sp, &cli] (const WGraph &g) {
     return DeltaStep(g, sp.PickNext(), cli.delta());

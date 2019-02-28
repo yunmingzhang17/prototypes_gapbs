@@ -291,7 +291,7 @@ class CSRGraph {
     return Range<NodeID_>(num_nodes());
   }
 
- private:
+  // private:
   bool directed_;
   int64_t num_nodes_;
   int64_t num_edges_;

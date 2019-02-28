@@ -135,6 +135,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       //  t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
+	pq->increment_iter();
       }
       if (next_bin_index < local_bins.size()) {
         size_t copy_start = fetch_and_add(next_frontier_tail,
@@ -144,7 +145,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
         local_bins[next_bin_index].resize(0);
       }
       iter++;
-      pq->increment_iter();
+      
       #pragma omp barrier
     }
     #pragma omp single

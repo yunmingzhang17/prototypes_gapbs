@@ -69,23 +69,34 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   dist_array[source] = 0;
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
-  size_t shared_indexes[2] = {0, kMaxBin};
-  size_t frontier_tails[2] = {1, 0};
+  //size_t shared_indexes[2] = {0, kMaxBin};
+  //size_t frontier_tails[2] = {1, 0};
+
+  pq->init_indexes_tails();
+
   frontier[0] = source;
   t.Start();
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
     size_t iter = 0;
-    while (shared_indexes[iter&1] != kMaxBin) {
-      size_t &curr_bin_index = shared_indexes[iter&1];
-      size_t &next_bin_index = shared_indexes[(iter+1)&1];
-      size_t &curr_frontier_tail = frontier_tails[iter&1];
-      size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
+    while (pq->get_current_priority() != kMaxBin) {
+
+      // size_t &curr_bin_index = shared_indexes[iter&1];
+//       size_t &next_bin_index = shared_indexes[(iter+1)&1];
+//       size_t &curr_frontier_tail = frontier_tails[iter&1];
+//       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
+
+
+      size_t &curr_bin_index = pq->shared_indexes[iter&1];
+      size_t &next_bin_index = pq->shared_indexes[(iter+1)&1];
+      size_t &curr_frontier_tail = pq->frontier_tails[iter&1];
+      size_t &next_frontier_tail = pq->frontier_tails[(iter+1)&1];
+
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
-        if (dist_array[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
+        if (dist_array[u] >= delta * static_cast<WeightT>(pq->get_current_priority())) {
           for (WNode wn : g.out_neigh(u)) {
             WeightT old_dist = dist_array[wn.v];
             WeightT new_dist = dist_array[u] + wn.w;
@@ -109,7 +120,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
           }
         }
       }
-      for (size_t i=curr_bin_index; i < local_bins.size(); i++) {
+      for (size_t i=pq->get_current_priority(); i < local_bins.size(); i++) {
         if (!local_bins[i].empty()) {
           #pragma omp critical
           next_bin_index = min(next_bin_index, i);
@@ -133,6 +144,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
         local_bins[next_bin_index].resize(0);
       }
       iter++;
+      pq->increment_iter();
       #pragma omp barrier
     }
     #pragma omp single

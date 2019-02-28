@@ -16,9 +16,29 @@ public:
   explicit PriorityQueue(bool use_lazy_bucket, PriorityT_* priorities) {
     priorities_ = priorities;
   }
+
+  // set up shared_indexes, iter and frontier_tails data structures
+  void init_indexes_tails(){
+    shared_indexes[0] = 0;
+    shared_indexes[1] = kMaxBin;
+    frontier_tails[0] = 1;
+    frontier_tails[1] = 0;
+
+    iter_=0;
+  }
+
+  // get the prioirty of the current iteration (each iter has a priority)
+  size_t get_current_priority(){
+    return shared_indexes[iter_&1];
+  }
+
+  // increment the iteration number, which was used for computing the current priorty
+  void increment_iter() {
+    iter_++;
+  }
   
   bool finished() {
-    
+
   }
 
   void updatePriorityMin(NodeID dst, PriorityT_ new_p, PriorityT_ old_p){
@@ -28,5 +48,9 @@ public:
   PriorityT_* priorities_;
   const PriorityT_ kDistInf = numeric_limits<PriorityT_>::max()/2;
   const size_t kMaxBin = numeric_limits<size_t>::max()/2;
+
+  size_t shared_indexes[2];
+  size_t frontier_tails[2];
+  size_t iter_ = 0;
 
 };

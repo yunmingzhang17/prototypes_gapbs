@@ -54,7 +54,46 @@ const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
 PriorityQueue<WeightT> * pq; 
-WeightT* dist_array;
+WeightT* __restrict dist_array;
+WeightT input_delta;
+
+template <typename PriorityT_>
+
+struct update_priority_min
+{
+  void operator()(vector<vector<NodeID> >& local_bins, NodeID dst, PriorityT_ old_dist, PriorityT_ new_dist){ 
+  if (new_dist < old_dist) {
+    bool changed_dist = true;
+    while (!compare_and_swap(dist_array[dst], old_dist, new_dist)) {
+      old_dist = dist_array[dst];
+      if (old_dist <= new_dist) {
+	changed_dist = false;
+	break;
+      }
+    }
+    if (changed_dist) {
+      size_t dest_bin = new_dist/input_delta;
+      if (dest_bin >= local_bins.size()) {
+	local_bins.resize(dest_bin+1);
+      }
+      local_bins[dest_bin].push_back(dst);
+    }
+  }
+
+}
+
+};
+
+
+struct edge_update_func
+{
+  void operator()(vector<vector<NodeID> >& local_bins, NodeID src, NodeID dst, WeightT wt){
+  WeightT old_dist = dist_array[dst];
+  WeightT new_dist = dist_array[src] + wt;
+  update_priority_min<WeightT>()(local_bins, dst, old_dist, new_dist);
+  }
+};
+
 
 
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
@@ -62,6 +101,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
 
   //resetng the distances
+  #pragma omp parallel for
   for (int i = 0; i < g.num_nodes(); i++){
     dist_array[i] = kDistInf;
   }
@@ -98,28 +138,12 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
         NodeID u = frontier[i];
         if (dist_array[u] >= delta * static_cast<WeightT>(pq->get_current_priority())) {
           for (WNode wn : g.out_neigh(u)) {
-            WeightT old_dist = dist_array[wn.v];
-            WeightT new_dist = dist_array[u] + wn.w;
-            if (new_dist < old_dist) {
-              bool changed_dist = true;
-              while (!compare_and_swap(dist_array[wn.v], old_dist, new_dist)) {
-                old_dist = dist_array[wn.v];
-                if (old_dist <= new_dist) {
-                  changed_dist = false;
-                  break;
-                }
-              }
-              if (changed_dist) {
-                size_t dest_bin = new_dist/delta;
-                if (dest_bin >= local_bins.size()) {
-                  local_bins.resize(dest_bin+1);
-                }
-                local_bins[dest_bin].push_back(wn.v);
-              }
-            }
+             edge_update_func()(local_bins, u, wn.v, wn.w);
           }
-        }
-      }
+ 
+    } //end of if statement
+    }//going through current frontier for end
+
       for (size_t i=pq->get_current_priority(); i < local_bins.size(); i++) {
         if (!local_bins[i].empty()) {
           #pragma omp critical
@@ -135,6 +159,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       //  t.Start();
         curr_bin_index = kMaxBin;
         curr_frontier_tail = 0;
+	// need to make srue we increment it from only one thread
 	pq->increment_iter();
       }
       if (next_bin_index < local_bins.size()) {
@@ -155,6 +180,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;
   
+  #pragma omp parallel for
   for (int i = 0; i < g.num_nodes(); i++){
     dist[i] = dist_array[i];
   }  
@@ -220,10 +246,13 @@ int main(int argc, char* argv[]) {
   }
   pq = new PriorityQueue<WeightT>(false, dist_array);
   
+  input_delta = cli.delta();
 
   auto SSSPBound = [&sp, &cli] (const WGraph &g) {
     return DeltaStep(g, sp.PickNext(), cli.delta());
   };
+
+
   SourcePicker<WGraph> vsp(g, cli.start_vertex());
   auto VerifierBound = [&vsp] (const WGraph &g, const pvector<WeightT> &dist) {
     return SSSPVerifier(g, vsp.PickNext(), dist);

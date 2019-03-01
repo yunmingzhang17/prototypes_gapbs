@@ -52,6 +52,7 @@ using namespace std;
 
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
+const size_t bin_size_threshold = 1000;
 
 PriorityQueue<WeightT> * pq; 
 WeightT* __restrict dist_array;
@@ -143,6 +144,25 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
  
     } //end of if statement
     }//going through current frontier for end
+
+
+
+      while (local_bins.size() > 0 && curr_bin_index < local_bins.size() && !local_bins[curr_bin_index].empty()){
+      size_t cur_bin_size = local_bins[curr_bin_index].size();
+      if (cur_bin_size > bin_size_threshold) break;
+
+        vector<NodeID> cur_bin_copy = local_bins[curr_bin_index];
+        local_bins[curr_bin_index].resize(0);
+        for (size_t i=0; i < cur_bin_size; i++) {
+          NodeID u = cur_bin_copy[i];
+          if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
+              for (WNode wn : g.out_neigh(u)) {  
+                 edge_update_func()(local_bins, u, wn.v, wn.w);
+              }
+          }
+        }
+    }
+      //searching for the next priority
 
       for (size_t i=pq->get_current_priority(); i < local_bins.size(); i++) {
         if (!local_bins[i].empty()) {

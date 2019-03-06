@@ -155,7 +155,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
         local_bins[curr_bin_index].resize(0);
         for (size_t i=0; i < cur_bin_size; i++) {
           NodeID u = cur_bin_copy[i];
-          if (dist[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
+          if (dist_array[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
               for (WNode wn : g.out_neigh(u)) {  
                  edge_update_func()(local_bins, u, wn.v, wn.w);
               }

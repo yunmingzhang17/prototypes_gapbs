@@ -41,7 +41,7 @@ public:
   
   bool finished() {
     if (!use_lazy_bucket_){
-      return get_current_priority() != kMaxBin;
+      return get_current_priority() == kMaxBin;
     } else {
       //not yet implemented
       return true;

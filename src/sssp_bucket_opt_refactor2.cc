@@ -95,13 +95,27 @@ struct edge_update_func
   }
 };
 
+struct src_filter_func
+{
+  bool operator()(NodeID v){
+    return (dist_array[v] >= input_delta * static_cast<WeightT>(pq->get_current_priority()));
+  }
+};
+
+struct while_cond_func
+{
+  bool operator()(){
+    return !pq->finished();
+  }
+};
+
 
 //may be the priority queue constructor can take an optional first node as argument
 //saves the effort to search for the first node
 //this would be the optional source node
 
-template<class P>
-void OrderProcessingOperator(const WGraph &g, WeightT delta, NodeID optional_source_node, P* dist_array){
+template<class Priority, class SrcFilter, class WhileCond>
+void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
 
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
@@ -119,7 +133,9 @@ void OrderProcessingOperator(const WGraph &g, WeightT delta, NodeID optional_sou
   {
     vector<vector<NodeID> > local_bins(0);
     size_t iter = 0;
-    while (pq->finished()) {
+    while (while_cond()) {
+      //TODO: refactor to use user supplied 
+      // while (user_supplied_condition())
 
       // size_t &curr_bin_index = shared_indexes[iter&1];
 //       size_t &next_bin_index = shared_indexes[(iter+1)&1];
@@ -135,7 +151,8 @@ void OrderProcessingOperator(const WGraph &g, WeightT delta, NodeID optional_sou
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
-        if (dist_array[u] >= delta * static_cast<WeightT>(pq->get_current_priority())) {
+	//TODO: need to refactor to use user supplied filtering on the source node
+        if (src_filter(u)) {
           for (WNode wn : g.out_neigh(u)) {
              edge_update_func()(local_bins, u, wn.v, wn.w);
           }
@@ -153,7 +170,7 @@ void OrderProcessingOperator(const WGraph &g, WeightT delta, NodeID optional_sou
         local_bins[curr_bin_index].resize(0);
         for (size_t i=0; i < cur_bin_size; i++) {
           NodeID u = cur_bin_copy[i];
-          if (dist_array[u] >= delta * static_cast<WeightT>(curr_bin_index)) {
+          if (src_filter(u)) {
               for (WNode wn : g.out_neigh(u)) {  
                  edge_update_func()(local_bins, u, wn.v, wn.w);
               }
@@ -213,8 +230,8 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
 
   dist_array[source] = 0;
   
-
-  OrderProcessingOperator<WeightT>(g, delta, source, dist_array);
+  //void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
+  OrderProcessingOperator(g, delta, dist_array, src_filter_func(), while_cond_func(),  source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;

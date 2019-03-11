@@ -53,7 +53,7 @@ using namespace std;
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
-PriorityQueue<WeightT> * pq; 
+EagerPriorityQueue<WeightT> * pq; 
 WeightT* __restrict dist_array;
 WeightT input_delta;
 
@@ -94,33 +94,47 @@ struct edge_update_func
   }
 };
 
-
-
-pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
-  Timer t;
-  pvector<WeightT> dist(g.num_nodes(), kDistInf);
-
-  //resetng the distances
-  #pragma omp parallel for
-  for (int i = 0; i < g.num_nodes(); i++){
-    dist_array[i] = kDistInf;
+struct src_filter_func
+{
+  bool operator()(NodeID v){
+    return (dist_array[v] >= input_delta * static_cast<WeightT>(pq->get_current_priority()));
   }
+};
 
-  dist_array[source] = 0;
+struct while_cond_func
+{
+  bool operator()(){
+    return !pq->finished();
+  }
+};
+
+
+//may be the priority queue constructor can take an optional first node as argument
+//saves the effort to search for the first node
+//this would be the optional source node
+
+template<class Priority, class SrcFilter, class WhileCond>
+void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
+
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
   //size_t shared_indexes[2] = {0, kMaxBin};
   //size_t frontier_tails[2] = {1, 0};
 
   pq->init_indexes_tails();
+  
+  //optional source node
 
-  frontier[0] = source;
-  t.Start();
+
+  frontier[0] = optional_source_node;
+  
   #pragma omp parallel
   {
     vector<vector<NodeID> > local_bins(0);
     size_t iter = 0;
-    while (pq->finished()) {
+    while (while_cond()) {
+      //TODO: refactor to use user supplied 
+      // while (user_supplied_condition())
 
       // size_t &curr_bin_index = shared_indexes[iter&1];
 //       size_t &next_bin_index = shared_indexes[(iter+1)&1];
@@ -136,13 +150,16 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
-        if (dist_array[u] >= delta * static_cast<WeightT>(pq->get_current_priority())) {
+	//TODO: need to refactor to use user supplied filtering on the source node
+        if (src_filter(u)) {
           for (WNode wn : g.out_neigh(u)) {
              edge_update_func()(local_bins, u, wn.v, wn.w);
           }
  
     } //end of if statement
     }//going through current frontier for end
+
+      //searching for the next priority
 
       for (size_t i=pq->get_current_priority(); i < local_bins.size(); i++) {
         if (!local_bins[i].empty()) {
@@ -175,7 +192,28 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
     }
     #pragma omp single
     cout << "took " << iter << " iterations" << endl;
-  }//end of pragma omp parallel 
+  }//end of pragma omp parallel   
+  
+
+}
+
+
+
+pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
+  Timer t;
+  pvector<WeightT> dist(g.num_nodes(), kDistInf);
+
+  t.Start();
+  //resetng the distances
+  #pragma omp parallel for
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist_array[i] = kDistInf;
+  }
+
+  dist_array[source] = 0;
+  
+  //void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
+  OrderProcessingOperator(g, delta, dist_array, src_filter_func(), while_cond_func(),  source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;
@@ -244,7 +282,7 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < g.num_nodes(); i++){
     dist_array[i] = kDistInf;
   }
-  pq = new PriorityQueue<WeightT>(false, dist_array);
+  pq = new EagerPriorityQueue<WeightT>(dist_array);
   
   input_delta = cli.delta();
 

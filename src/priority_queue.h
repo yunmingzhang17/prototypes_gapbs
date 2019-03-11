@@ -10,12 +10,11 @@
  * Representation 2: When using lazy buckets, the priority queue actually stores all the nodes with their buckets (the buckets are not distributed)
  **/
 template<typename PriorityT_>
-class PriorityQueue {
+class EagerPriorityQueue {
 
 public:
-  explicit PriorityQueue(bool use_lazy_bucket, PriorityT_* priorities) {
+  explicit EagerPriorityQueue(PriorityT_* priorities) {
     priorities_ = priorities;
-    use_lazy_bucket_ = use_lazy_bucket;
     iter_ = 0;
   }
 
@@ -40,12 +39,7 @@ public:
   }
   
   bool finished() {
-    if (!use_lazy_bucket_){
       return get_current_priority() == kMaxBin;
-    } else {
-      //not yet implemented
-      return true;
-    }
   }
 
   void updatePriorityMin(NodeID dst, PriorityT_ new_p, PriorityT_ old_p){
@@ -59,6 +53,5 @@ public:
   size_t shared_indexes[2];
   size_t frontier_tails[2];
   size_t iter_;;
-  bool use_lazy_bucket_;
 
 };

@@ -1,3 +1,7 @@
+#ifndef EAGER_PRIORITY_QUEUE_H
+#define EAGER_PRIORITY_QUEUE_H
+
+
 #include <algorithm>
 #include <cinttypes>
 
@@ -55,3 +59,5 @@ public:
   size_t iter_;;
 
 };
+
+#endif // EAGER_PRIORITY_QUEUE_H

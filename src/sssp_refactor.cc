@@ -15,7 +15,8 @@
 #include "platform_atomics.h"
 #include "pvector.h"
 #include "timer.h"
-#include "priority_queue.h"
+#include "eager_priority_queue.h"
+#include "ordered_processing.h"
 
 /*
 GAP Benchmark Suite
@@ -51,7 +52,7 @@ bins.
 using namespace std;
 
 const WeightT kDistInf = numeric_limits<WeightT>::max()/2;
-const size_t kMaxBin = numeric_limits<size_t>::max()/2;
+
 
 EagerPriorityQueue<WeightT> * pq; 
 WeightT* __restrict dist_array;
@@ -109,93 +110,7 @@ struct while_cond_func
 };
 
 
-//may be the priority queue constructor can take an optional first node as argument
-//saves the effort to search for the first node
-//this would be the optional source node
 
-template<class Priority, class SrcFilter, class WhileCond>
-void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
-
-  pvector<NodeID> frontier(g.num_edges_directed());
-  // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
-  //size_t shared_indexes[2] = {0, kMaxBin};
-  //size_t frontier_tails[2] = {1, 0};
-
-  pq->init_indexes_tails();
-  
-  //optional source node
-
-
-  frontier[0] = optional_source_node;
-  
-  #pragma omp parallel
-  {
-    vector<vector<NodeID> > local_bins(0);
-    size_t iter = 0;
-    while (while_cond()) {
-      //TODO: refactor to use user supplied 
-      // while (user_supplied_condition())
-
-      // size_t &curr_bin_index = shared_indexes[iter&1];
-//       size_t &next_bin_index = shared_indexes[(iter+1)&1];
-//       size_t &curr_frontier_tail = frontier_tails[iter&1];
-//       size_t &next_frontier_tail = frontier_tails[(iter+1)&1];
-
-
-      size_t &curr_bin_index = pq->shared_indexes[iter&1];
-      size_t &next_bin_index = pq->shared_indexes[(iter+1)&1];
-      size_t &curr_frontier_tail = pq->frontier_tails[iter&1];
-      size_t &next_frontier_tail = pq->frontier_tails[(iter+1)&1];
-
-      #pragma omp for nowait schedule(dynamic, 64)
-      for (size_t i=0; i < curr_frontier_tail; i++) {
-        NodeID u = frontier[i];
-	//TODO: need to refactor to use user supplied filtering on the source node
-        if (src_filter(u)) {
-          for (WNode wn : g.out_neigh(u)) {
-             edge_update_func()(local_bins, u, wn.v, wn.w);
-          }
- 
-    } //end of if statement
-    }//going through current frontier for end
-
-      //searching for the next priority
-
-      for (size_t i=pq->get_current_priority(); i < local_bins.size(); i++) {
-        if (!local_bins[i].empty()) {
-          #pragma omp critical
-          next_bin_index = min(next_bin_index, i);
-          break;
-        }
-      }
-      #pragma omp barrier
-      #pragma omp single nowait
-      {
-      //t.Stop();
-      //PrintStep(curr_bin_index, t.Millisecs(), curr_frontier_tail);
-      //  t.Start();
-        curr_bin_index = kMaxBin;
-        curr_frontier_tail = 0;
-	// need to make srue we increment it from only one thread
-	pq->increment_iter();
-      }
-      if (next_bin_index < local_bins.size()) {
-        size_t copy_start = fetch_and_add(next_frontier_tail,
-                                          local_bins[next_bin_index].size());
-        copy(local_bins[next_bin_index].begin(),
-             local_bins[next_bin_index].end(), frontier.data() + copy_start);
-        local_bins[next_bin_index].resize(0);
-      }
-      iter++;
-      
-      #pragma omp barrier
-    }
-    #pragma omp single
-    cout << "took " << iter << " iterations" << endl;
-  }//end of pragma omp parallel   
-  
-
-}
 
 
 
@@ -213,7 +128,7 @@ pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {
   dist_array[source] = 0;
   
   //void OrderProcessingOperator(const WGraph &g, WeightT delta,Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, NodeID optional_source_node){
-  OrderProcessingOperator(g, delta, dist_array, src_filter_func(), while_cond_func(),  source);
+  OrderedProcessingOperatorNoMerge(pq, g, dist_array, src_filter_func(), while_cond_func(), edge_update_func(),  source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;

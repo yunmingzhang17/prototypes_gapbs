@@ -6,6 +6,38 @@
 
 const size_t kMaxBin = numeric_limits<size_t>::max()/2;
 
+
+
+template <typename PriorityT_>
+struct update_priority_min
+{
+  void operator()(EagerPriorityQueue<PriorityT_>* pq, 
+  					vector<vector<NodeID> >& local_bins, 
+  					NodeID dst, PriorityT_ old_val, 
+  					PriorityT_ new_val, 
+  					PriorityT_ delta = 1){
+    if (new_val < old_val) {
+      bool changed_dist = true;
+      while (!compare_and_swap(pq->priorities_[dst], old_val, new_val)) {
+        old_val = pq->priorities_[dst];
+        if (old_val <= new_val) {
+          changed_dist = false;
+          break;
+        }
+      }
+      if (changed_dist) {
+      	// assume the priority is mapped to a bin using delta
+        size_t dest_bin = new_val/delta;
+        if (dest_bin >= local_bins.size()) {
+	  local_bins.resize(dest_bin+1);
+        }
+        local_bins[dest_bin].push_back(dst);
+      }
+    }
+  }
+};
+
+
 template< class Priority, class SrcFilter, class EdgeApplyFunc , class WhileCond>
   void OrderedProcessingOperatorNoMerge(EagerPriorityQueue<Priority>* pq, const WGraph &g, Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, EdgeApplyFunc edge_apply,  NodeID optional_source_node){
 

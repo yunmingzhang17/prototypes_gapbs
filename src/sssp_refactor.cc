@@ -58,40 +58,13 @@ EagerPriorityQueue<WeightT> * pq;
 WeightT* __restrict dist_array;
 WeightT input_delta;
 
-template <typename PriorityT_>
-
-struct update_priority_min
-{
-  void operator()(vector<vector<NodeID> >& local_bins, NodeID dst, PriorityT_ old_dist, PriorityT_ new_dist){ 
-  if (new_dist < old_dist) {
-    bool changed_dist = true;
-    while (!compare_and_swap(dist_array[dst], old_dist, new_dist)) {
-      old_dist = dist_array[dst];
-      if (old_dist <= new_dist) {
-	changed_dist = false;
-	break;
-      }
-    }
-    if (changed_dist) {
-      size_t dest_bin = new_dist/input_delta;
-      if (dest_bin >= local_bins.size()) {
-	local_bins.resize(dest_bin+1);
-      }
-      local_bins[dest_bin].push_back(dst);
-    }
-  }
-
-}
-
-};
-
 
 struct edge_update_func
 {
   void operator()(vector<vector<NodeID> >& local_bins, NodeID src, NodeID dst, WeightT wt){
   WeightT old_dist = dist_array[dst];
   WeightT new_dist = dist_array[src] + wt;
-  update_priority_min<WeightT>()(local_bins, dst, old_dist, new_dist);
+  update_priority_min<WeightT>()(pq, local_bins, dst, old_dist, new_dist, input_delta);
   }
 };
 
@@ -108,10 +81,6 @@ struct while_cond_func
     return !pq->finished();
   }
 };
-
-
-
-
 
 
 pvector<WeightT> DeltaStep(const WGraph &g, NodeID source, WeightT delta) {

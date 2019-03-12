@@ -46,10 +46,6 @@ public:
       return get_current_priority() == kMaxBin;
   }
 
-  void updatePriorityMin(NodeID dst, PriorityT_ new_p, PriorityT_ old_p){
-
-  }
-
   PriorityT_* priorities_;
   const PriorityT_ kDistInf = numeric_limits<PriorityT_>::max()/2;
   const size_t kMaxBin = numeric_limits<size_t>::max()/2;

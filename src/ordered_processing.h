@@ -14,8 +14,7 @@ struct update_priority_min
   void operator()(EagerPriorityQueue<PriorityT_>* pq, 
   					vector<vector<NodeID> >& local_bins, 
   					NodeID dst, PriorityT_ old_val, 
-  					PriorityT_ new_val, 
-  					PriorityT_ delta = 1){
+  					PriorityT_ new_val){
     if (new_val < old_val) {
       bool changed_dist = true;
       while (!compare_and_swap(pq->priorities_[dst], old_val, new_val)) {
@@ -27,7 +26,10 @@ struct update_priority_min
       }
       if (changed_dist) {
       	// assume the priority is mapped to a bin using delta
-        size_t dest_bin = new_val/delta;
+      	size_t dest_bin;
+      	if (pq->delta_ != 1) dest_bin = new_val/pq->delta_;
+      	else dest_bin = new_val;
+      	
         if (dest_bin >= local_bins.size()) {
 	  local_bins.resize(dest_bin+1);
         }

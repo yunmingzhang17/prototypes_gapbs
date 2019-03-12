@@ -64,7 +64,7 @@ struct edge_update_func
   void operator()(vector<vector<NodeID> >& local_bins, NodeID src, NodeID dst, WeightT wt){
   WeightT old_dist = dist_array[dst];
   WeightT new_dist = dist_array[src] + wt;
-  update_priority_min<WeightT>()(pq, local_bins, dst, old_dist, new_dist, input_delta);
+  update_priority_min<WeightT>()(pq, local_bins, dst, old_dist, new_dist);
   }
 };
 
@@ -166,9 +166,10 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < g.num_nodes(); i++){
     dist_array[i] = kDistInf;
   }
-  pq = new EagerPriorityQueue<WeightT>(dist_array);
   
   input_delta = cli.delta();
+  pq = new EagerPriorityQueue<WeightT>(dist_array, input_delta);
+  
 
   auto SSSPBound = [&sp, &cli] (const WGraph &g) {
     return DeltaStep(g, sp.PickNext(), cli.delta());

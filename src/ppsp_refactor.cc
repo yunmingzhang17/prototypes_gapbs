@@ -56,13 +56,41 @@ struct src_filter_func
 struct while_cond_func
 {
   bool operator()(){
-    return dist_array[dest]/input_delta < pq->get_current_priority();
+    return dist_array[dest]/input_delta > pq->get_current_priority();
   }
 };
 
 
-
 pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, WeightT delta) {
+  Timer t;
+  pvector<WeightT> dist(g.num_nodes(), kDistInf);
+  t.Start();
+
+  //resetng the distances                                                                             
+  #pragma omp parallel for
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist_array[i] = kDistInf;
+  }
+
+  dist_array[source] = 0;
+
+  
+  OrderedProcessingOperatorNoMerge(pq, g, dist_array, src_filter_func(), while_cond_func(), edge_update_func(), source);
+
+  t.Stop();
+  cout << "DeltaStep took: " << t.Seconds() << endl;
+
+  #pragma omp parallel for
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist[i] = dist_array[i];
+  }
+
+  return dist;
+
+}
+
+
+pvector<WeightT> PPDeltaStep_old(const WGraph &g, NodeID source, NodeID dest, WeightT delta) {
   Timer t;
   pvector<WeightT> dist(g.num_nodes(), kDistInf);
   dist[source] = 0;
@@ -267,6 +295,15 @@ int main(int argc, char* argv[]) {
   WeightedBuilder b(cli);
   WGraph g = b.MakeGraph();
 
+  dist_array = new WeightT[g.num_nodes()];
+  for (int i = 0; i < g.num_nodes(); i++){
+    dist_array[i] = kDistInf;
+  }
+
+  input_delta = cli.delta();
+  pq = new EagerPriorityQueue<WeightT>(dist_array, input_delta);
+  dest = cli.dst_vertex();
+ 
 #ifdef ORIG
 
   SourcePicker<WGraph> sp(g, cli.start_vertex());
@@ -298,10 +335,12 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < num_trails; i++)
     BenchmarkKernel(cli, g, SSSPBound, PrintSSSPStats, VerifierBound);
 
-#endif
 
   cout << "starting point: " << cli.start_vertex() << endl;
   cout << "ending point: " << cli.dst_vertex() << endl;
+
+#endif
+
 
   return 0;
 }

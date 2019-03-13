@@ -118,7 +118,7 @@ template< class Priority, class SrcFilter, class EdgeApplyFunc , class WhileCond
       #pragma omp barrier
     }
     #pragma omp single
-    cout << "took " << iter << " iterations" << endl;
+    cout << "order processing took " << iter << " iterations" << endl;
   }//end of pragma omp parallel   
   
 

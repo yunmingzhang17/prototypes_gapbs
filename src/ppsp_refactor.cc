@@ -56,7 +56,7 @@ struct src_filter_func
 struct while_cond_func
 {
   bool operator()(){
-    return dist_array[dest]/input_delta > pq->get_current_priority();
+    return dist_array[dest]/input_delta >= pq->get_current_priority();
   }
 };
 

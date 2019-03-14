@@ -14,7 +14,7 @@ struct update_priority_min
   void operator()(EagerPriorityQueue<PriorityT_>* pq, 
   					vector<vector<NodeID> >& local_bins, 
   					NodeID dst, PriorityT_ old_val, 
-  					PriorityT_ new_val){
+		  PriorityT_ new_val){
     if (new_val < old_val) {
       bool changed_dist = true;
       while (!compare_and_swap(pq->priorities_[dst], old_val, new_val)) {

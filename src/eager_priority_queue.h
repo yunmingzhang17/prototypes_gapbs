@@ -35,9 +35,6 @@ public:
 
   // get the prioirty of the current iteration (each iter has a priority)
   size_t get_current_priority(){
-    cout << "iter: " << iter_ << endl;
-    cout << "shared_indexes0: " << shared_indexes[0] << endl;
-    cout << "shared_indexes1: " << shared_indexes[1] << endl;
     return shared_indexes[iter_&1];
   }
 

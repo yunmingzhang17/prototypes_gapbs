@@ -71,19 +71,22 @@ struct edge_update_func
     WeightT new_dist = dist_array[src] + wt;
     //bool changed = writeMin(&dist_array[dst], new_dist);
 
-    if (new_dist < dist_array[dst]) dist_array[dst] = new_dist;
+    if (new_dist < dist_array[dst]) {
 
-    //if (changed){
+      dist_array[dst] = new_dist;
+
+      //if (changed){
       WeightT old_est_dist = est_dist_array[dst];
-      WeightT new1 = dist_array[dst] + calculate_distance(dst, dest);
-      //cout << "src node: " << src << " dst: " << dst << " wt: " << wt  << endl;
-      //cout << "dst node: " << dst <<" new est dist: " << new1 << endl;
-      //cout << "dst node: " << dst <<" actual dist: " << dist_array[dst] << endl;
-      WeightT new2 = est_dist_array[dst];
-      WeightT new_est_dist = new1 > new2 ? new1 : new2;
+      WeightT new1 = dist_array[dst] + ((WeightT)calculate_distance(dst, dest));
+      WeightT new2 = est_dist_array[src]; //priority of the current source node
+      WeightT new_est_dist = new1 > new2 ? new1 : new2; //the priority should not be lower than the currrent source node, otherwise, it won't be processed
+
       if (new_est_dist < old_est_dist)
 	update_priority_min<WeightT>()(pq, local_bins, dst, old_est_dist, new_est_dist);
+
+
       //}
+    }
   }
 };
 
@@ -92,17 +95,14 @@ struct src_filter_func
   bool operator()(NodeID v){
     return (est_dist_array[v] < est_dist_array[dest] && est_dist_array[v] >= input_delta * static_cast<WeightT>(pq->get_current_priority()));
     //return est_dist_array[v] >= input_delta * static_cast<WeightT>(pq->get_current_priority());
+    //return true;
   }
 };
 
 struct while_cond_func
 {
   bool operator()(){
-    cout << "estimated distance to dest: " << est_dist_array[dest] << endl;
-    cout << "current priority: " << pq->get_current_priority() << endl;
-
-    //return est_dist_array[dest]/input_delta >= pq->get_current_priority();
-    return !pq->finished();
+    return est_dist_array[dest]/input_delta >= pq->get_current_priority();
   }
 };
 
@@ -122,7 +122,7 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
   dist_array[source] = 0;
   est_dist_array[source] = calculate_distance(source, dest);
   
-  OrderedProcessingOperatorWithMerge(pq, g, dist_array, src_filter_func(), while_cond_func(), edge_update_func(), 1000,  source);
+  OrderedProcessingOperatorWithMerge(pq, g, dist_array, src_filter_func(), while_cond_func(), edge_update_func(), 1000, source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;

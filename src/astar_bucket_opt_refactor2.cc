@@ -69,11 +69,11 @@ struct edge_update_func
 {
   void operator()(vector<vector<NodeID> >& local_bins, NodeID src, NodeID dst, WeightT wt){
     WeightT new_dist = dist_array[src] + wt;
-    //bool changed = writeMin(&dist_array[dst], new_dist);
+    bool changed = writeMin(&dist_array[dst], new_dist);
 
-    if (new_dist < dist_array[dst]) {
+    if (changed) {
 
-      dist_array[dst] = new_dist;
+      //dist_array[dst] = new_dist;
 
       //if (changed){
       WeightT old_est_dist = est_dist_array[dst];
@@ -83,9 +83,6 @@ struct edge_update_func
 
       if (new_est_dist < old_est_dist)
 	update_priority_min<WeightT>()(pq, local_bins, dst, old_est_dist, new_est_dist);
-
-
-      //}
     }
   }
 };

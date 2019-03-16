@@ -75,7 +75,7 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
   dist_array[source] = 0;
 
   
-  OrderedProcessingOperatorNoMerge(pq, g, dist_array, src_filter_func(), while_cond_func(), edge_update_func(), source);
+  OrderedProcessingOperatorNoMerge(pq, g,  src_filter_func(), while_cond_func(), edge_update_func(), source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;

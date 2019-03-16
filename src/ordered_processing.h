@@ -41,7 +41,7 @@ struct update_priority_min
 
 
 template< class Priority, class SrcFilter, class EdgeApplyFunc , class WhileCond>
-  void OrderedProcessingOperatorNoMerge(EagerPriorityQueue<Priority>* pq, const WGraph &g, Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, EdgeApplyFunc edge_apply,  NodeID optional_source_node){
+  void OrderedProcessingOperatorNoMerge(EagerPriorityQueue<Priority>* pq, const WGraph &g, SrcFilter src_filter, WhileCond while_cond, EdgeApplyFunc edge_apply,  NodeID optional_source_node){
 
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1
@@ -127,7 +127,7 @@ template< class Priority, class SrcFilter, class EdgeApplyFunc , class WhileCond
 
 
 template<class Priority, class SrcFilter, class WhileCond, class EdgeApplyFunc >
-  void OrderedProcessingOperatorWithMerge(EagerPriorityQueue<Priority>* pq, const WGraph &g, Priority* dist_array, SrcFilter src_filter, WhileCond while_cond, EdgeApplyFunc edge_apply, int bin_size_threshold = 1000, NodeID optional_source_node=-1){
+  void OrderedProcessingOperatorWithMerge(EagerPriorityQueue<Priority>* pq, const WGraph &g, SrcFilter src_filter, WhileCond while_cond, EdgeApplyFunc edge_apply, int bin_size_threshold = 1000, NodeID optional_source_node=-1){
 
   pvector<NodeID> frontier(g.num_edges_directed());
   // two element arrays for double buffering curr=iter&1, next=(iter+1)&1

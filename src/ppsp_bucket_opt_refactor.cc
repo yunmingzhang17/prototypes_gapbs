@@ -56,7 +56,7 @@ struct src_filter_func
 struct while_cond_func
 {
   bool operator()(){
-    return dist_array[dest]/input_delta >= pq->get_current_priority();
+    return !pq->finishedNode(dest);
   }
 };
 
@@ -75,7 +75,7 @@ pvector<WeightT> PPDeltaStep(const WGraph &g, NodeID source, NodeID dest, Weight
   dist_array[source] = 0;
 
   
-  OrderedProcessingOperatorWithMerge(pq, g,  src_filter_func(), while_cond_func(), edge_update_func(), 1000, source);
+  OrderedProcessingOperatorWithMerge(pq, g, while_cond_func(), edge_update_func(), 1000, source);
 
   t.Stop();
   cout << "DeltaStep took: " << t.Seconds() << endl;

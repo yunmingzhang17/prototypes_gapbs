@@ -44,13 +44,18 @@ public:
   }
   
   bool finished() {
-      return get_current_priority() == kMaxBin;
+    return get_current_priority() == kMaxBin;
+  }
+
+  bool finishedNode(NodeID v){
+    return priorities_[v]/delta_ < get_current_priority();
   }
 
   PriorityT_* priorities_;
   const PriorityT_ kDistInf = std::numeric_limits<PriorityT_>::max()/2;
   const size_t kMaxBin = std::numeric_limits<size_t>::max()/2;
   PriorityT_ delta_;
+  PriorityT_ current_priority_;
   size_t shared_indexes[2];
   size_t frontier_tails[2];
   size_t iter_;;

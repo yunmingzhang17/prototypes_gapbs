@@ -79,7 +79,7 @@ template< class Priority, class EdgeApplyFunc , class WhileCond>
         NodeID u = frontier[i];
 	//TODO: need to refactor to use user supplied filtering on the source node
         //if (src_filter(u)) { //hard code this into the library
-	if (pq->priorities_[u] == pq->delta_*pq->get_current_priority()){
+	if (pq->priorities_[u] >= pq->delta_*pq->get_current_priority()){
           for (WNode wn : g.out_neigh(u)) {
              edge_apply(local_bins, u, wn.v, wn.w);
           }
@@ -164,9 +164,8 @@ template<class Priority,  class WhileCond, class EdgeApplyFunc >
       #pragma omp for nowait schedule(dynamic, 64)
       for (size_t i=0; i < curr_frontier_tail; i++) {
         NodeID u = frontier[i];
-	//TODO: need to refactor to use user supplied filtering on the source node
         //if (src_filter(u)) {
-	if (pq->priorities_[u] == pq->delta_*pq->get_current_priority()){
+	if (pq->priorities_[u] >= pq->delta_*pq->get_current_priority()){
           for (WNode wn : g.out_neigh(u)) {
              edge_apply(local_bins, u, wn.v, wn.w);
           }
@@ -185,7 +184,7 @@ template<class Priority,  class WhileCond, class EdgeApplyFunc >
         for (size_t i=0; i < cur_bin_size; i++) {
           NodeID u = cur_bin_copy[i];
           //if (src_filter(u)) {
-	  if (pq->priorities_[u] == pq->delta_*pq->get_current_priority()){
+	  if (pq->priorities_[u] >= pq->delta_*pq->get_current_priority()){
               for (WNode wn : g.out_neigh(u)) {  
                  edge_apply(local_bins, u, wn.v, wn.w);
               }
